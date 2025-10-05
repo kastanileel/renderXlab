@@ -5,6 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>renderXlab</title>
         <link rel="stylesheet" href="style.css">
+        <link rel="icon" href="./faviconTest.png" type="image/png">
         <!-- enabling mathjax in html text blocks-->
         <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     </head>
@@ -33,8 +34,11 @@
             ctx.textAlign = 'center';
             ctx.fillText('RenderXLab Placeholder', canvas.width/2, canvas.height/2);
 
-            const renderxlabContext = await initialize(canvas);
+            import {RXLContext} from './core/RXLContext.js';
 
+            const rxlContext = await RXLContext.create(canvas);
+
+            /*
             // example
             const sceneConfiguration = { 'bvhBuildStrategy' : 'SAH'};
             const scene = loadScene('./scenes/cornell.json', sceneConfiguration);
@@ -69,6 +73,7 @@
             
                 requestAnimationFrame(renderLoop)
             }
+            */
             
         </script>
     </body>
