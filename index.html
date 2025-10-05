@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>renderXlab</title>
+        <link rel="stylesheet" href="style.css">
+        <!-- enabling mathjax in html text blocks-->
+        <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    </head>
+    <body>
+        <h1> This is an example</h1>
+        <slider id="slider0"></slider>
+        <canvas id="example0"></canvas>
+        <script type="module">
+            // This is just a rough idea of how the framework can be used:
+
+            const canvas = document.getElementById('example0');
+
+            // placeholder image for the canvas... will be removed soon
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            const ctx = canvas.getContext('2d'); 
+            
+            const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+            gradient.addColorStop(0, 'lightblue');
+            gradient.addColorStop(1, 'navy');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = 'white';
+            ctx.font = '48px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('RenderXLab Placeholder', canvas.width/2, canvas.height/2);
+
+            const renderxlabContext = await initialize(canvas);
+
+            // example
+            const sceneConfiguration = { 'bvhBuildStrategy' : 'SAH'};
+            const scene = loadScene('./scenes/cornell.json', sceneConfiguration);
+
+            const shaders = loadShaders('./shader/example.wgsl')
+            // would be cool to support other sl than wgsl since this is a quite new language
+            //const shaders1 = loadShaders('./shader/example.glsl')
+
+            // register an arbitrary number of ui elements 
+            const ui = new Ui();
+            ui.register('example0', Ui.Type.Slider, 0, Ui.DataType.Float);
+
+            // bindgroups are fixed/ derived internally
+            const pipeline = createPipeline(renderxlabContext, shader, ui, scene, pipeline.Type.RTPipeline)
+
+            let lastTime = 0;
+
+            function renderLoop(currentTime){
+
+                // convert to seconds
+                const deltaTime = (currentTime - lastTime)/ 1000.0;
+                lastTime = currentTime;
+
+                // dispatch compute/render pass
+                pipeline.dispatch()
+
+                // present image to canvas
+                pipeline.present()
+
+                // update scene, react to ui input
+                scene.update();
+            
+                requestAnimationFrame(renderLoop)
+            }
+            
+        </script>
+    </body>
+</html>
