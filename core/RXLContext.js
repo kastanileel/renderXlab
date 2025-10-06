@@ -43,4 +43,8 @@ export class RXLContext {
         this.#device = device;
         this.#canvas = canvas;
     }
+
+    getDevice() {
+        return this.#device;
+    }
 }

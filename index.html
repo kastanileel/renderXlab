@@ -46,11 +46,12 @@
             const sceneConfiguration = { 'bvhBuildStrategy' : 'SAH'};
             const scene = new Scene('./scenes/cornell.json', sceneConfiguration);
 
-            /*
-            const shaders = loadShaders('./shader/example.wgsl')
+            import {ShaderModule} from './render/components/ShaderModule.js';
+            const shaderModule = await ShaderModule.create(rxlContext, './shaders/example.wgsl');
             // would be cool to support other sl than wgsl since this is a quite new language
             //const shaders1 = loadShaders('./shader/example.glsl')
 
+            /*
             // register an arbitrary number of ui elements 
             const ui = new Ui();
             ui.register('example0', Ui.Type.Slider, 0, Ui.DataType.Float);

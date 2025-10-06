@@ -1,3 +1,5 @@
+import { RXLContext } from "../../core/rXlContext.js";
+
 export class ShaderModule{
 
     #module;
@@ -5,7 +7,7 @@ export class ShaderModule{
   
     // same creation logic like in RXLContext.js
     static #constructed = false;
-    async create(){
+    static async create(context, filepath){
         let module;
         let code;
 
@@ -16,7 +18,7 @@ export class ShaderModule{
         .then(shader => {
             code = shader;
             console.log(shader)
-            module = context.device.createShaderModule({
+            module = context.getDevice().createShaderModule({
                 label: 'test0',
                 code: shader,
             });
