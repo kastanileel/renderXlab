@@ -1,4 +1,4 @@
-import { identity } from "../utils/RXLMath";
+import { identity } from "../utils/RXLMath.js";
 
 export class RenderObject{
 

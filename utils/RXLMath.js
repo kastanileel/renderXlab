@@ -1,6 +1,3 @@
-// Import mathjs
-import { matrix, identity as mathIdentity } from 'mathjs';
-
 /*
 * Math interface, currently based on https://mathjs.org
 *
@@ -10,5 +7,5 @@ import { matrix, identity as mathIdentity } from 'mathjs';
 
 // Returns an identity matrix of given size
 export function identity(size) {
-  return mathIdentity(size); // mathjs identity function
+  return math.identity(size); // mathjs identity function
 }

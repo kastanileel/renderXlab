@@ -41,11 +41,12 @@
 
             const rxlContext = await RXLContext.create(canvas);
 
-            /*
             // example
+            import {Scene} from './render/Scene.js';
             const sceneConfiguration = { 'bvhBuildStrategy' : 'SAH'};
-            const scene = loadScene('./scenes/cornell.json', sceneConfiguration);
+            const scene = new Scene('./scenes/cornell.json', sceneConfiguration);
 
+            /*
             const shaders = loadShaders('./shader/example.wgsl')
             // would be cool to support other sl than wgsl since this is a quite new language
             //const shaders1 = loadShaders('./shader/example.glsl')

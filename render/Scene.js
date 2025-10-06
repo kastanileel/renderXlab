@@ -1,5 +1,7 @@
-import { Shape, Mesh } from "./Shape";
-import { Material, LambertianDiffuse } from "./Material";
+import { RenderObject } from "./RenderObject.js";
+import { Shape, Mesh } from "./Shape.js";
+import { Material, LambertianDiffuse } from "./Material.js";
+import {Camera, PinholeCamera} from "./Camera.js"
 
 export class Scene{
 
@@ -8,7 +10,7 @@ export class Scene{
     #camera;
 
 
-    constructor(path){
+    constructor(path, sceneConfig){
         
         this.#shapes = [];
         this.#materials = [];

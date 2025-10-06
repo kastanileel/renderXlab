@@ -1,7 +1,8 @@
-import { RenderObject } from "./RenderObject";
+import { RenderObject } from "./RenderObject.js";
 
 export class Shape extends RenderObject{
     constructor(){
+        super();
         console.log("constructing shape");
     }
 }
