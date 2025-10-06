@@ -1,5 +1,7 @@
 import { RXLContext } from "../../core/rXlContext.js";
 import { ShaderModule } from "./ShaderModule.js";
+import {Scene} from "../Scene.js"
+import { UIManager } from "./UIManager.js";
 
 export class Pipeline{
 
@@ -8,10 +10,11 @@ export class Pipeline{
     #uniformBuffer;
     #texture;
     #context;
+    #uiManager;
 
    // same creation logic like in RXLContext.js
     static #constructed = false;
-    static async create(context, shaderModule, scene, ui){
+    static async create(context, shaderModule, scene, uiManager){
 
         // create buffers
 
@@ -23,7 +26,13 @@ export class Pipeline{
         });
 
         // uniform buffer
-        const uniformBufferSize = 24;
+        var uniformBufferSize = 4 + uiManager.getTotalSizeInBytes();
+        
+        // minimum binding size 
+        if(uniformBufferSize < 24) {
+            uniformBufferSize = 24;
+        }
+
         const uniformBuffer = context.getDevice().createBuffer({
             size: uniformBufferSize,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -75,10 +84,10 @@ export class Pipeline{
 
         Pipeline.#constructed = true;
         
-        return new Pipeline(pipeline, context, uniformBuffer, texture);
+        return new Pipeline(pipeline, context, uniformBuffer, texture, uiManager);
     }    
 
-    constructor(pipeline, context, uniformBuffer, texture){
+    constructor(pipeline, context, uniformBuffer, texture, uiManager){
         if(!Pipeline.#constructed){
             throw new Error("Use Pipeline.create() for creating a new pipeline!");
         }
@@ -87,6 +96,7 @@ export class Pipeline{
         this.#context = context;
         this.#uniformBuffer = uniformBuffer;
         this.#texture = texture;
+        this.#uiManager = uiManager;
 
         Pipeline.#constructed = false;
     }
@@ -96,10 +106,32 @@ export class Pipeline{
     }
 
     async update(currentTime, deltaTime){
-       const uniformData = new Float32Array([
+       const [state, size] = this.#uiManager.getState();
+
+        var uniformSize = 1;
+        // Iterate through the size Map
+        for (const [key, value] of size) {
+            uniformSize += value;
+        }
+
+        console.log(uniformSize);
+        const uniformData = new Float32Array(uniformSize);
+        uniformData[0] = currentTime/1000.0;
+
+        // currently assume each element has size 1
+        let counter = 1;
+        for (const [key, value] of state){
+            uniformData[counter] = value;
+            counter += 1;
+        }
+
+        this.#context.getDevice().queue.writeBuffer(this.#uniformBuffer, 0, uniformData); 
+
+        const uniformDataa = new Float32Array([
             currentTime/1000.0,           
         ]);
-        this.#context.getDevice().queue.writeBuffer(this.#uniformBuffer, 0, uniformData); 
+
+        this.#context.getDevice().queue.writeBuffer(this.#uniformBuffer, 0, uniformDataa); 
     }
 
     async dispatch(){

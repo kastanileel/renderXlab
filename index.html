@@ -15,8 +15,9 @@
     <body>
         <h1> This is an example</h1>
         
-        <slider id="slider0"></slider>
+        <input type="range" id="slider0" min="0" max="1000" value="500" step="1">
         <canvas id="example0"></canvas>
+
         <script type="module">
             // This is just a rough idea of how the framework can be used:
 
@@ -52,15 +53,18 @@
             // would be cool to support other sl than wgsl since this is a quite new language
             //const shaders1 = loadShaders('./shader/example.glsl')
 
-            /*
+            
             // register an arbitrary number of ui elements 
-            const ui = new Ui();
-            ui.register('example0', Ui.Type.Slider, 0, Ui.DataType.Float);
-            */
+            import {UIManager} from './render/components/UIManager.js';
+            const uiManager = new UIManager();
+
+            const slider = document.getElementById('slider0');
+            uiManager.register(slider, 1, (oldValue, e) => parseFloat(e.target.value)/1000);
+            
 
             // bindgroups are fixed/ derived internally
             import {Pipeline} from './render/components/Pipeline.js';
-            const pipeline = await Pipeline.create(rxlContext, shaderModule, scene);//, ui); 
+            const pipeline = await Pipeline.create(rxlContext, shaderModule, scene, uiManager); 
             
             
             let lastTime = 0;
@@ -82,7 +86,6 @@
             
                 requestAnimationFrame(renderLoop);
 
-                console.log("looping, deltaTime: " + deltaTime);
             }
 
             renderLoop(0);
