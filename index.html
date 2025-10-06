@@ -14,6 +14,7 @@
     </head>
     <body>
         <h1> This is an example</h1>
+        
         <slider id="slider0"></slider>
         <canvas id="example0"></canvas>
         <script type="module">
@@ -61,7 +62,7 @@
             import {Pipeline} from './render/components/Pipeline.js';
             const pipeline = await Pipeline.create(rxlContext, shaderModule, scene);//, ui); 
             
-            /*
+            
             let lastTime = 0;
 
             function renderLoop(currentTime){
@@ -74,14 +75,18 @@
                 pipeline.dispatch()
 
                 // present image to canvas
-                pipeline.present()
+                //pipeline.present()
 
-                // update scene, react to ui input
-                scene.update();
+                // update pipeline, react to ui input
+                pipeline.update(lastTime, deltaTime);
             
-                requestAnimationFrame(renderLoop)
+                requestAnimationFrame(renderLoop);
+
+                console.log("looping, deltaTime: " + deltaTime);
             }
-            */
+
+            renderLoop(0);
+            
             
         </script>
     </body>

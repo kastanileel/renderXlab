@@ -49,4 +49,8 @@ export class RXLContext {
     getDevice() {
         return this.#device;
     }
+
+    getCanvas() {
+        return this.#canvas;
+    }
 }
