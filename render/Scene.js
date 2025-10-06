@@ -33,7 +33,15 @@ export class Scene{
     }
 
     async build(context) {
-        this.#camera.build();
+        await this.#camera.build(context);
+
+        for(const shape of this.#shapes){
+            shape.build(context);
+        }
+
+        for(const material of this.#materials){
+            material.build(context);
+        }
     }
 
     async getBindGroupLayouts(context){
@@ -96,4 +104,12 @@ export class Scene{
 
         return bindGroupLayouts;
    }
+
+    getBindGroups(context, pipeline) {
+        const bindGroupCamera = this.#camera.getBindGroup(context, pipeline.getBindGroupLayout(1));    
+        const bindGroupShapes = this.#shapes[0].getBindGroup(context, pipeline.getBindGroupLayout(2));    
+        const bindGroupMaterials = this.#materials[0].getBindGroup(context, pipeline.getBindGroupLayout(3));    
+
+        return [bindGroupCamera, bindGroupShapes, bindGroupMaterials];
+    }
 }

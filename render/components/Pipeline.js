@@ -12,6 +12,7 @@ export class Pipeline{
     #context;
     #uiManager;
 
+    #otherBindGroups;
    // same creation logic like in RXLContext.js
     static #constructed = false;
     static async create(context, shaderModule, scene, uiManager){
@@ -70,14 +71,14 @@ export class Pipeline{
             ],
         });
 
-        const otherBindGroups = await scene.getBindGroupLayouts(context);
+        const otherBindGroupLayouts = await scene.getBindGroupLayouts(context);
         // Todo: bindgroup 1: containing camera specific info
         // Todo: bindgroup 2: containing shape specific info
         // Todo: bindgroup 3: containing material specific info
         // => mapping from shapeid->materialid is might be done via a lut found in bingroup 0
         
         const pipelineLayout = await context.getDevice().createPipelineLayout({
-            bindGroupLayouts: [bindGroupLayout0, otherBindGroups],
+            bindGroupLayouts: [bindGroupLayout0, ...otherBindGroupLayouts],
         }); 
 
         const pipeline = await context.getDevice().createComputePipeline({
@@ -86,12 +87,13 @@ export class Pipeline{
             compute: shaderModule.getModule(), 
         });
 
+        const otherBindGroups = scene.getBindGroups(context, pipeline);
+
         Pipeline.#constructed = true;
-        
-        return new Pipeline(pipeline, context, uniformBuffer, texture, uiManager);
+        return new Pipeline(pipeline, context, uniformBuffer, texture, uiManager, otherBindGroups);
     }    
 
-    constructor(pipeline, context, uniformBuffer, texture, uiManager){
+    constructor(pipeline, context, uniformBuffer, texture, uiManager, otherBindGroups){
         if(!Pipeline.#constructed){
             throw new Error("Use Pipeline.create() for creating a new pipeline!");
         }
@@ -101,6 +103,8 @@ export class Pipeline{
         this.#uniformBuffer = uniformBuffer;
         this.#texture = texture;
         this.#uiManager = uiManager;
+
+        this.#otherBindGroups = otherBindGroups;
 
         Pipeline.#constructed = false;
     }
@@ -136,6 +140,10 @@ export class Pipeline{
         ]);
 
         this.#context.getDevice().queue.writeBuffer(this.#uniformBuffer, 0, uniformDataa); 
+
+
+        // Todo:
+        // this.#scene.update();
     }
 
     async dispatch(){
@@ -161,6 +169,9 @@ export class Pipeline{
         const pass = commandEncoder.beginComputePass();
         pass.setPipeline(this.#pipeline);
         pass.setBindGroup(0, bindGroup);
+        pass.setBindGroup(1, this.#otherBindGroups[0]);
+        pass.setBindGroup(2, this.#otherBindGroups[1]);
+        pass.setBindGroup(3, this.#otherBindGroups[2]);
 
         // Dispatch workgroups to cover the entire texture
         const workgroupSize = 8;

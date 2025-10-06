@@ -7,9 +7,13 @@ export class Camera extends RenderObject{
         console.log("Camera!");
     }
 
-     // "virtual" function
+    // "virtual" function
     build(context) {
         throw new Error("Camera.build() is a virtual function please override it!");
+    }
+
+    getBindGroup(context, layout){
+        throw new Error("Camera.getBindGroup() is a virtual function please override it");
     }
 }
 
@@ -25,29 +29,40 @@ export class PinholeCamera extends Camera{
         this.#fov = 60;
     }
 
-    build(context) {
+    async build(context) {
 
+        console.log("building camera buffer");
         // num of f32 variables * 4 byte
         const cameraDataSize = 3*4;
     
         this.#cameraDataBuffer = context.getDevice().createBuffer({
             size: cameraDataSize,
-            usage: GPUBuffer.STORAGE | GPUBuffer.COPY_DST,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
 
+        // position, will be extended
         const cameraData = new Float32Array([
-             // Front face (z = 0.5)
-            -0.5, -0.5,  0.5,
-            0.5, -0.5,  0.5,
-            0.5,  0.5,  0.5,
-            -0.5,  0.5,  0.5,
-
-            // Back face (z = -0.5)
-            -0.5, -0.5, -0.5,
-            0.5, -0.5, -0.5,
-            0.5,  0.5, -0.5,
-            -0.5,  0.5, -0.5,
+           0, 0, -8 
         ]);
-        this.context.device.queue.writeBuffer(this.vertexBuffer, 0, cube);
+
+        await context.getDevice().queue.writeBuffer(this.#cameraDataBuffer, 0, cameraData);
     }
+
+    getBindGroup(context, layout){
+
+        const bindGroupCamera = context.getDevice().createBindGroup({
+            layout: layout,
+            entries: [
+                {
+                    binding: 0,
+                    resource: {
+                        buffer: this.#cameraDataBuffer
+                    }
+                }
+            ]
+        });
+
+        return bindGroupCamera;
+    }
+
 }
