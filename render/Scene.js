@@ -31,4 +31,69 @@ export class Scene{
 
         // create bind groups
     }
+
+    async build(context) {
+        this.#camera.build();
+    }
+
+    async getBindGroupLayouts(context){
+        const bindGroupLayouts = [];
+
+        // todo: - make camera responsible for own bind group
+        //       - allow for different shape types (spheres, lenses, splines, ...)
+        //       - allow for various material types 
+
+
+        //this.#camera.getBindGroupLayout(context); 
+        const bindGroupLayoutCamera = await context.getDevice().createBindGroupLayout({ 
+            entries: [
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "storage" } 
+                }
+            ]
+        });
+
+        const bindGroupLayoutShape = await context.getDevice().createBindGroupLayout({ 
+            entries: [
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "storage" } 
+                },
+                {
+                    binding: 1,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "storage" } 
+                },
+                {
+                    binding: 2,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "storage" } 
+                },
+                {
+                    binding: 3,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "storage" } 
+                },
+            ]
+        });
+
+        const bindGroupMaterial = await context.getDevice().createBindGroupLayout({ 
+            entries: [
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "storage" } 
+                }
+            ]
+        });
+
+        bindGroupLayouts.push(bindGroupLayoutCamera);
+        bindGroupLayouts.push(bindGroupLayoutShape);
+        bindGroupLayouts.push(bindGroupMaterial);
+
+        return bindGroupLayouts;
+   }
 }

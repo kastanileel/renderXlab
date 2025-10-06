@@ -42,10 +42,13 @@ export class Pipeline{
             0.0,
         ]);
         context.getDevice().queue.writeBuffer(uniformBuffer, 0, uniformData);
-      
+
+        // all render object allocate their buffers 
+        await scene.build(context);
+     
         // bind group 0 should contain fixed stuff like the accumulation image
         // and the uniform buffer
-        const bindGroupLayout = await context.getDevice().createBindGroupLayout({
+        const bindGroupLayout0 = await context.getDevice().createBindGroupLayout({
             entries: [
                 {
                     binding: 0,
@@ -67,13 +70,14 @@ export class Pipeline{
             ],
         });
 
+        const otherBindGroups = await scene.getBindGroupLayouts(context);
         // Todo: bindgroup 1: containing camera specific info
         // Todo: bindgroup 2: containing shape specific info
         // Todo: bindgroup 3: containing material specific info
         // => mapping from shapeid->materialid is might be done via a lut found in bingroup 0
-
+        
         const pipelineLayout = await context.getDevice().createPipelineLayout({
-            bindGroupLayouts: [bindGroupLayout],
+            bindGroupLayouts: [bindGroupLayout0, otherBindGroups],
         }); 
 
         const pipeline = await context.getDevice().createComputePipeline({
