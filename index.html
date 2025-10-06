@@ -23,24 +23,7 @@
 
             const canvas = document.getElementById('example0');
 
-            // placeholder image for the canvas... will be removed soon
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            const ctx = canvas.getContext('2d'); 
-            
-            const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-            gradient.addColorStop(0, 'lightblue');
-            gradient.addColorStop(1, 'navy');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            ctx.fillStyle = 'white';
-            ctx.font = '48px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('RenderXLab Placeholder', canvas.width/2, canvas.height/2);
-
             import {RXLContext} from './core/RXLContext.js';
-
             const rxlContext = await RXLContext.create(canvas);
 
             // example
@@ -52,12 +35,10 @@
             const shaderModule = await ShaderModule.create(rxlContext, './shaders/example.wgsl');
             // would be cool to support other sl than wgsl since this is a quite new language
             //const shaders1 = loadShaders('./shader/example.glsl')
-
             
             // register an arbitrary number of ui elements 
             import {UIManager} from './render/components/UIManager.js';
             const uiManager = new UIManager();
-
             const slider = document.getElementById('slider0');
             uiManager.register(slider, 1, (oldValue, e) => parseFloat(e.target.value)/1000);
             
@@ -65,7 +46,6 @@
             // bindgroups are fixed/ derived internally
             import {Pipeline} from './render/components/Pipeline.js';
             const pipeline = await Pipeline.create(rxlContext, shaderModule, scene, uiManager); 
-            
             
             let lastTime = 0;
 
