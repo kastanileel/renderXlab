@@ -42,6 +42,8 @@ export class RXLContext {
         this.#adapter = adapter;
         this.#device = device;
         this.#canvas = canvas;
+
+        RXLContext.#constructed = false;
     }
 
     getDevice() {

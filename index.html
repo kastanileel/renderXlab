@@ -55,10 +55,13 @@
             // register an arbitrary number of ui elements 
             const ui = new Ui();
             ui.register('example0', Ui.Type.Slider, 0, Ui.DataType.Float);
+            */
 
             // bindgroups are fixed/ derived internally
-            const pipeline = createPipeline(renderxlabContext, shader, ui, scene, pipeline.Type.RTPipeline)
-
+            import {Pipeline} from './render/components/Pipeline.js';
+            const pipeline = await Pipeline.create(rxlContext, shaderModule, scene);//, ui); 
+            
+            /*
             let lastTime = 0;
 
             function renderLoop(currentTime){

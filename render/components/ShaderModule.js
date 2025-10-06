@@ -35,5 +35,15 @@ export class ShaderModule{
 
         this.#module = module;
         this.#code = code;
+
+        ShaderModule.#constructed = false;
     }
+
+    getModule() {
+        return {
+            module: this.#module,
+            entryPoint: 'main',
+        };
+    }
+ 
 }
