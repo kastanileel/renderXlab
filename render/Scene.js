@@ -9,6 +9,9 @@ export class Scene{
     #materials;
     #camera;
 
+    #sceneInfo;
+    #shapeLUT;
+
 
     constructor(path, sceneConfig){
         

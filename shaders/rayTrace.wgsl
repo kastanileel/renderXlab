@@ -47,27 +47,23 @@ fn intersect_triangle(o: vec3<f32>, d: vec3<f32>, v0: vec3<f32>, v1: vec3<f32>, 
 
     var det = dot(P, e1);
 
+    let eps = 1e-5;
     //  parallel ray
-    if abs(det) < 0.0001{
+    if abs(det) < eps {
         return vec3f(-1.0);
-    }
+    } 
     
     var u = 1.0/det * dot(P, T);
-    if(u < 0.0 || u > 1.0){
+    if (u < -eps) {
         return vec3f(-1.0);
     }
 
     var v = 1.0/det * dot(Q, d);
-    if(v < 0.0 || v > 1.0){
-        return vec3f(-1.0);
-    }
-
-    if(v+u > 1.0){
+    if (v < -eps || (u + v) > 1.0 + eps) {
         return vec3f(-1.0);
     }
 
     var t = 1.0/det * dot(Q, e2);
-
     return vec3f(t, u, v);
 }
 
