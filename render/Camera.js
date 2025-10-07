@@ -36,13 +36,13 @@ export class PinholeCamera extends Camera{
         const cameraDataSize = 3*4;
     
         this.#cameraDataBuffer = context.getDevice().createBuffer({
-            size: cameraDataSize,
+            size: (cameraDataSize+15)&~15,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
 
         // position, will be extended
         const cameraData = new Float32Array([
-           0, 0, -8 
+           0.0, 0.0, -1.0
         ]);
 
         await context.getDevice().queue.writeBuffer(this.#cameraDataBuffer, 0, cameraData);

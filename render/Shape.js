@@ -32,9 +32,9 @@ export class Mesh extends Shape{
         super();
 
         this.#vertices = [
-            [0.5, 1.0, 0.0],
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0]
+            [0.0, 0.0, 0.0, 0.0],
+            [0.5, 1.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0, 0.0]
         ];
 
         this.#indices = [
@@ -57,7 +57,7 @@ export class Mesh extends Shape{
     build(context) {
 
         // vertex buffer
-        const vertexSize = this.#vertices.length * 3 *4;
+        const vertexSize = this.#vertices.length * 4 *4;
         this.#vertexBuffer = context.getDevice().createBuffer({
             size: vertexSize,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
