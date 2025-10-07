@@ -20,18 +20,27 @@ var<uniform> params: Uniforms;
 @group(1) @binding(0)
 var<storage, read_write> cameraData: array<vec4<f32>>;
 
-// Bind Group 2: Meshes
+struct ShapeInfo{
+    verticesOffset: i32,
+    indicesOffset: i32,
+    verticesCount: i32,
+    indicesCount: i32
+};
+
 @group(2) @binding(0)
-var<storage, read_write> vertices: array<vec3<f32>>;
+var<storage, read_write> shapeInfo: array<ShapeInfo>;
 
 @group(2) @binding(1)
-var<storage, read_write> indices: array<vec3<i32>>;
+var<storage, read_write> vertices: array<vec3<f32>>;
 
 @group(2) @binding(2)
-var<storage, read_write> normals: array<vec3<f32>>;
+var<storage, read_write> indices: array<i32>;
 
-@group(2) @binding(3)
-var<storage, read_write> uvCoords: array<vec2<f32>>;
+//@group(2) @binding(3)
+//var<storage, read_write> normals: array<vec3<f32>>;
+
+//@group(2) @binding(4)
+//var<storage, read_write> uvCoords: array<vec2<f32>>;
 
 // Bind Group 3: Material
 @group(3) @binding(0)
@@ -76,21 +85,29 @@ fn main(@builtin(global_invocation_id) id : vec3u){
 
     // Camera position
     let o: vec3<f32> = cameraData[0].xyz;
-    var d: vec3<f32> = normalize(vec3<f32>(uv, 0.0) - o); 
+    var d: vec3<f32> = normalize(vec3<f32>(uv, o.z+0.5 + params.slider) - vec3f(0.0, 0.0, o.z)); 
 
-    let t = intersect_triangle(o, d, vertices[0],
-                                     vertices[1],
-                                     vertices[2]);
+    var t_min = 10000.0;
+    var u = 0.0;
+    var v = 0.0;
 
+    //vertexCount = 2;
+    for(var triangleID = 0; triangleID < shapeInfo[0].indicesCount; triangleID = triangleID + 3){
+        var indx = vec3i(indices[triangleID], indices[triangleID+1], indices[triangleID+2]);
+        
+        let t = intersect_triangle(o, d, vertices[indx.x],
+                                     vertices[indx.y],
+                                     vertices[indx.z]);
+        if(t.x != -1.0 && t.x < t_min){
+            t_min = t.x;
+            u = t.y;
+            v = t.z;
+        }
+    }
     var finalColor = vec4f(uv.x, (sin(params.time)+1.0)/2.0, uv.x, 1.0f);
 
-    if(t.x > 0.0){
-        finalColor = vec4f(t.y, t.z, (1.0-t.y - t.z), 1.0);
+    if(t_min > 0.0 && t_min < 1000){
+        finalColor = vec4f(1.0f, 0.0, 0.0, 1.0);//vec4f(u, v, 1.0-u-v, 1.0);
     }
-
-    if(uv.x < (params.slider - 0.5)*2.0){
-        finalColor = vec4f(1.0, 0.0, 0.0, 1.0);
-    }
-
     textureStore(accumulationTexture, vec2i(id.xy), finalColor);
 }

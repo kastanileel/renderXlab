@@ -1,15 +1,25 @@
 import { RenderObject } from "./RenderObject.js";
 
 export class Camera extends RenderObject{
-   
+  
+    static _constructed = false;
     constructor() {
+        if(!Camera._constructed){
+            throw new Error("Camera");
+        }
         super();
         console.log("Camera!");
+
+        Camera._constructed = false;
     }
 
     // "virtual" function
-    build(context) {
+    async build(context) {
         throw new Error("Camera.build() is a virtual function please override it!");
+    }
+
+    async getBindGroupLayout(context){
+        throw new Error("Camera.getBindGroupLayout() is a virtual function please override it!");
     }
 
     getBindGroup(context, layout){
@@ -21,6 +31,11 @@ export class PinholeCamera extends Camera{
 
     #fov;
     #cameraDataBuffer;
+
+    static async create(){
+        Camera._constructed = true;
+        return new PinholeCamera();
+    }
 
     constructor(){
         super();
@@ -42,10 +57,24 @@ export class PinholeCamera extends Camera{
 
         // position, will be extended
         const cameraData = new Float32Array([
-           0.0, 0.0, -1.0
+           0.0, 0.0, -5.0
         ]);
 
         await context.getDevice().queue.writeBuffer(this.#cameraDataBuffer, 0, cameraData);
+    }
+
+    async getBindGroupLayout(context){
+        const bindGroupLayoutCamera = await context.getDevice().createBindGroupLayout({ 
+            entries: [
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "storage" } 
+                }
+            ]
+        });
+
+        return bindGroupLayoutCamera;
     }
 
     getBindGroup(context, layout){

@@ -29,7 +29,7 @@
             // example
             import {Scene} from './render/Scene.js';
             const sceneConfiguration = { 'bvhBuildStrategy' : 'SAH'};
-            const scene = new Scene('./scenes/cornell.json', sceneConfiguration);
+            const scene = await Scene.create('./scenes/cornell.json', sceneConfiguration);
 
             import {ShaderModule} from './render/components/ShaderModule.js';
             //const shaderModule = await ShaderModule.create(rxlContext, './shaders/example.wgsl');
