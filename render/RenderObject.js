@@ -14,6 +14,10 @@ export class RenderObject{
       
     }
 
+    setTransformation(matrix){
+        this.#transformationMatrix = matrix;
+    }
+
     getTransformation(){
         return this.#transformationMatrix;
     }

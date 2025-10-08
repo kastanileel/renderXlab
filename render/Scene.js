@@ -2,6 +2,7 @@ import { RenderObject } from "./RenderObject.js";
 import { Shape, Mesh } from "./Shape.js";
 import { Material, LambertianDiffuse } from "./Material.js";
 import {Camera, PinholeCamera} from "./Camera.js"
+import { toWorldTransform } from "../utils/RXLMath.js";
 
 class ShapeInfo{
 
@@ -11,13 +12,14 @@ class ShapeInfo{
         this.verticesCount = verticesCount;
         this.indicesCount = indicesCount;
 
-        // todo transformation matrix
+        this.matrix = shape.getTransformation();
     }
 
     verticesOffset;
     indicesOffset;
     verticesCount;
     indicesCount;
+    matrix;
 };
 
 export class Scene{
@@ -38,8 +40,14 @@ export class Scene{
     static async create(path, sceneConfig){
         // Todo: parsing
 
-        let mesh = await Mesh.create("../scenes/teapot.obj");
-        let shapes = [mesh];
+        let teapot = await Mesh.create("../scenes/teapot.obj");
+        teapot.setTransformation(toWorldTransform([2.0, 0.0, 0.0], [3.1415, 0.0, 0.0]));
+
+        let cube = await Mesh.create("../scenes/cube.obj");
+        cube.setTransformation(toWorldTransform([-6.0, 0.0, 0.0], [1.4, 1.4, 0.0]));
+
+        let shapes = [cube, teapot];
+        shapes = [teapot, cube];
 
         var lambertianDiffuse = new LambertianDiffuse();
         let materials = [lambertianDiffuse];
@@ -83,23 +91,37 @@ export class Scene{
 
             verticesOffset += verticesCount;
             indicesOffset += indicesCount;
+
+            shapeID ++;
         }
 
-        const shapeLUTSize = this.#shapeLUT.length * 2 *4;
+        // building shapeLUT on GPU
+        const shapeLUTSize = this.#shapeLUT.length * 20 *4;
+        const bufferLUT = new ArrayBuffer(shapeLUTSize);
+        const viewLUT = new DataView(bufferLUT);
+
+        var counter = 0;
+        for( const entry of this.#shapeLUT){
+            viewLUT.setInt32(counter, entry.verticesOffset, true);
+            viewLUT.setInt32(counter + 4, entry.indicesOffset, true);
+            viewLUT.setInt32(counter + 8, entry.verticesCount, true);
+            viewLUT.setInt32(counter + 12, entry.indicesCount, true);
+
+            let transform = entry.matrix.toArray().flat();
+            for (let i = 0; i < 16; i++) {
+                console.log(transform[i])
+                viewLUT.setFloat32(counter + 16 + i * 4, transform[i], true); // offset 16 bytes for floats
+            }
+
+            counter += 80;
+        }
+
         this.#shapeLUTBuffer = context.getDevice().createBuffer({
             size: (shapeLUTSize+15) &~15,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
         });
 
-        const shapeLUTArray = this.#shapeLUT.map(info => [
-            info.verticesOffset,
-            info.indicesOffset,
-            info.verticesCount,
-            info.indicesCount
-        ]);
-
-        const shapeLUTData = new Int32Array(shapeLUTArray.flat());
-        await context.getDevice().queue.writeBuffer(this.#shapeLUTBuffer, 0, shapeLUTData);
+        await context.getDevice().queue.writeBuffer(this.#shapeLUTBuffer, 0, bufferLUT);
 
 
         // vertex buffer

@@ -24,7 +24,8 @@ struct ShapeInfo{
     verticesOffset: i32,
     indicesOffset: i32,
     verticesCount: i32,
-    indicesCount: i32
+    indicesCount: i32,
+    shapeTransform: mat4x4<f32> 
 };
 
 @group(2) @binding(0)
@@ -91,19 +92,32 @@ fn main(@builtin(global_invocation_id) id : vec3u){
     var u = 0.0;
     var v = 0.0;
 
-    //vertexCount = 2;
-    for(var triangleID = 0; triangleID < shapeInfo[0].indicesCount; triangleID = triangleID + 3){
-        var indx = vec3i(indices[triangleID], indices[triangleID+1], indices[triangleID+2]);
-        
-        let t = intersect_triangle(o, d, vertices[indx.x],
-                                     vertices[indx.y],
-                                     vertices[indx.z]);
-        if(t.x != -1.0 && t.x < t_min){
-            t_min = t.x;
-            u = t.y;
-            v = t.z;
+    //vertexCount = 3;
+    let shapeCount = 2;
+
+    for(var shapeID = 0; shapeID < shapeCount; shapeID ++){
+        for (var triangleID = 0; triangleID < shapeInfo[shapeID].indicesCount; triangleID += 3) {
+            let i0 = indices[triangleID + 0 + shapeInfo[shapeID].indicesOffset] + shapeInfo[shapeID].verticesOffset;
+            let i1 = indices[triangleID + 1 + shapeInfo[shapeID].indicesOffset] + shapeInfo[shapeID].verticesOffset;
+            let i2 = indices[triangleID + 2 + shapeInfo[shapeID].indicesOffset] + shapeInfo[shapeID].verticesOffset;
+
+            // Transform vertices using the shape's transform matrix
+            var transform = transpose(shapeInfo[shapeID].shapeTransform);
+
+            let v0 = (transform * vec4<f32>(vertices[i0], 1.0)).xyz;
+            let v1 = (transform * vec4<f32>(vertices[i1], 1.0)).xyz;
+            let v2 = (transform * vec4<f32>(vertices[i2], 1.0)).xyz;
+
+            let t = intersect_triangle(o, d, v0, v1, v2);
+
+            if (t.x != -1.0 && t.x < t_min) {
+                t_min = t.x;
+                u = t.y;
+                v = t.z;
+            }
         }
     }
+
     var finalColor = vec4f(uv.x, (sin(params.time)+1.0)/2.0, uv.x, 1.0f);
 
     if(t_min > 0.0 && t_min < 1000){
