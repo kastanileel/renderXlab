@@ -57,7 +57,7 @@ export class PinholeCamera extends Camera{
 
         // position, will be extended
         const cameraData = new Float32Array([
-           0.0, 0.0, 5.0
+           0.0, 0.0, 9.0
         ]);
 
         await context.getDevice().queue.writeBuffer(this.#cameraDataBuffer, 0, cameraData);

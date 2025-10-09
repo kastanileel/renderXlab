@@ -1,12 +1,16 @@
 @group(0) @binding(0)
-var accumulationTexture: texture_storage_2d<rgba8unorm, write>;
+var accumulationTexture: texture_storage_2d<rgba32float, write>;
+
+@group(0) @binding(1)
+var previousAccum: texture_2d<f32>; // read-only sampled texture
 
 struct Uniforms{
     time: f32,
     slider: f32,
+    frameCount: f32
 };
 
-@group(0) @binding(1)
+@group(0) @binding(2)
 var<uniform> params: Uniforms;
 
 //Bind Group 1: Camera
@@ -237,10 +241,10 @@ fn main(@builtin(global_invocation_id) id : vec3u){
 
     let dims = vec2u(textureDimensions(accumulationTexture));
     var uv: vec2<f32> = ((vec2<f32>(id.xy) + 0.5) / vec2<f32>(dims)) * 2.0 - 1.0;
-    uv.x = uv.x *1.6;
+    uv.x = uv.x *800/600;
 
     // Camera position
-    var ray = raygen(120, uv);
+    var ray = raygen(40, uv);
 
     var payload = Payload();
     payload.accumulatedColor = vec3f(0.0);
@@ -270,12 +274,10 @@ fn main(@builtin(global_invocation_id) id : vec3u){
    
     }
 
-    var finalColor = vec4f(payload.accumulatedColor, 1.0);
 
-    var t_min = 10000.0;
-    var u = 0.0;
-    var v = 0.0;
+    var prevColor: vec4f = textureLoad(previousAccum, vec2i(id.xy), 0);
+    var newColor = (prevColor.xyz * f32(params.frameCount - 1.0) + payload.accumulatedColor) / f32(params.frameCount);
 
-    textureStore(accumulationTexture, vec2i(id.xy), finalColor);
+    textureStore(accumulationTexture, vec2i(id.xy), vec4f(newColor, 1.0));
 }
 
