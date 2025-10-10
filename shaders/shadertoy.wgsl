@@ -103,15 +103,15 @@ const sphereCount = 3u;
 const maxBounces = 6;
 
 var<private> spheres: array<Sphere, sphereCount> = array<Sphere, sphereCount>(
-    Sphere(vec3f(0.0, -1.0, 3.0), 1.0, 0),
-    Sphere(vec3f(2.0,  0.0, 4.0), 1.0, 1),
-    Sphere(vec3f(-2.0, 0.0, 4.0), 1.0, 2)
+    Sphere(vec3f(0.0, 0.0, 0.0), 1.0, 0),
+    Sphere(vec3f(0.0, -101.0, 0.0), 100.0, 1),
+    Sphere(vec3f(3.0, 3.0, 2.0), 1.0, 2)
 );
 
 var<private> materials: array<Material, sphereCount> = array<Material, sphereCount>(
-    Material(0, vec3f(10.0)), // emitter 
+    Material(2, vec3f(1.0, 1.0, 1.0)), // emitter 
     Material(1, vec3f(1.0, 0.0, 1.0)), // lambertian diffuse
-    Material(2, vec3f(0.0, 1.0, 0.5)), // lambertian diffuse
+    Material(0, vec3f(6.0)), // lambertian diffuse
 );
 
 // -----------------------------------------------------------------------------
@@ -173,7 +173,43 @@ fn sample(matID: i32, w_o: vec3f, normal: vec3f, pdf: ptr<function, f32>, seed: 
 // -----------------------------------------------------------------------------
 // Lambertian diffuse BRDF evaluation
 // -----------------------------------------------------------------------------
-fn evaluate(matID: i32, w_o: vec3f, normal: vec3f, w_i: vec3f) -> vec3f {
+fn evaluateLambertian(matID: i32, w_o: vec3f, normal: vec3f, w_i: vec3f) -> vec3f {
+    let mat = materials[matID];
+    // Lambertian: f = albedo / PI
+    return mat.albedo / 3.14159265;
+}
+
+// sampling of principled
+
+fn samplePrincipled(matID: i32, w_o: vec3f, normal: vec3f, pdf: ptr<function, f32>, seed: ptr<function, u32>) -> vec3f {
+    // Generate two random numbers in [0,1)
+    let r1 = RandomValue(seed);
+    let r2 = RandomValue(seed);
+    // Cosine-weighted hemisphere sampling
+    let phi = 2.0 * 3.14159265 * r1;
+    let cosTheta = sqrt(1.0 - r2);
+    let sinTheta = sqrt(r2);
+
+    let localDir = vec3f(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+
+    // Create an orthonormal basis around the normal
+    let up = select(vec3f(0.0, 1.0, 0.0), vec3f(1.0, 0.0, 0.0), abs(normal.y) > 0.999);
+    let tangent = normalize(cross(up, normal));
+    let bitangent = cross(normal, tangent);
+
+    let worldDir = normalize(
+        localDir.x * tangent +
+        localDir.y * bitangent +
+        localDir.z * normal
+    );
+
+    // PDF for cosine-weighted hemisphere
+    *pdf = max(0.0001, localDir.z / 3.14159265);
+    return worldDir;
+}
+
+// evaluat principled
+fn evaluatePrincipled(matID: i32, w_o: vec3f, normal: vec3f, w_i: vec3f) -> vec3f {
     let mat = materials[matID];
     // Lambertian: f = albedo / PI
     return mat.albedo / 3.14159265;
@@ -189,7 +225,19 @@ fn raygen( fov: f32, uv: vec2f) -> Ray {
 
     var d = -normalize(vec3f(uv.x * scale, uv.y * scale, 1.0));
 
-   return Ray(o, d);
+    let angle = radians(-15.0);
+    let cosA = cos(angle);
+    let sinA = sin(angle);
+
+    // Rotation around X axis:
+    // y' = y*cosθ - z*sinθ
+    // z' = y*sinθ + z*cosθ
+    let y = d.y * cosA - d.z * sinA;
+    let z = d.y * sinA + d.z * cosA;
+    d = normalize(vec3f(d.x, y, z));
+
+    return Ray(o, d);
+
 }
 
 // Returns a Hit struct; if no hit, t = -1.0
@@ -235,9 +283,16 @@ fn chit(hit: Hit, payload: ptr<function, Payload>){
     }
 
     var pdf_bsdf: f32 = 0.0;
-    var w_i = normalize(sample(hit.id, (*payload).w_i, hit.normal, &pdf_bsdf, &(*payload).seed));
-    var f = evaluate(hit.id, (*payload).w_i, hit.normal, w_i);
-
+    var w_i: vec3f;
+    var f: vec3f;
+    if(materials[hit.id].materialType == 1){
+        w_i = normalize(sample(hit.id, (*payload).w_i, hit.normal, &pdf_bsdf, &(*payload).seed));
+        f = evaluateLambertian(hit.id, (*payload).w_i, hit.normal, w_i);
+    }
+    if(materials[hit.id].materialType == 2){
+        w_i = normalize(samplePrincipled(hit.id, (*payload).w_i, hit.normal, &pdf_bsdf, &(*payload).seed));
+        f = evaluatePrincipled(hit.id, (*payload).w_i, hit.normal, w_i);
+    }
     let cosThetaI = max(0.001, dot(hit.normal, w_i));
     (*payload).w_i = w_i;
     (*payload).throughput *= f * cosThetaI / pdf_bsdf;
@@ -280,7 +335,7 @@ fn main(@builtin(global_invocation_id) id : vec3u){
     uv.x = uv.x *800/600;
 
     // Camera position
-    var ray = raygen(30, uv);
+    var ray = raygen(100, uv);
 
     var payload = Payload();
     payload.accumulatedColor = vec3f(0.0);

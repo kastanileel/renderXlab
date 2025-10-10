@@ -30,12 +30,12 @@ export class Pipeline{
         //------------------------------
         // Cubemap (todo: move to scene)
         const faceUrls = [
-            '../../scenes/skybox/px.png', 
-            '../../scenes/skybox/nx.png',
-            '../../scenes/skybox/py.png', 
-            '../../scenes/skybox/ny.png',
-            '../../scenes/skybox/pz.png', 
-            '../../scenes/skybox/nz.png'
+            '../../scenes/skybox2/px.png', 
+            '../../scenes/skybox2/nx.png',
+            '../../scenes/skybox2/py.png', 
+            '../../scenes/skybox2/ny.png',
+            '../../scenes/skybox2/pz.png', 
+            '../../scenes/skybox2/nz.png'
         ];
 
         const faceImages = await Promise.all(faceUrls.map(async (url) => {
