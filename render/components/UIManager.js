@@ -3,9 +3,11 @@ export class UIManager{
     #state;
     #size;
 
+    #changed;
     constructor() {
         this.#state = new Map();
         this.#size = new Map();
+        this.#changed = true;
     }
 
     register(element, byteSize, callback){
@@ -35,11 +37,19 @@ export class UIManager{
         element.addEventListener(eventType, (e) => {
             const oldValue = this.#state.get(key);
             this.#state.set(key, callback(oldValue, e));
+
+            this.#changed = true;
         });
     }
 
     getState() {
         return [this.#state, this.#size];
+    }
+
+    didChange(){
+        let changed = this.#changed;
+        this.#changed = false;
+        return changed; 
     }
 
     getTotalSizeInBytes(){

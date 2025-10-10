@@ -216,6 +216,11 @@ export class Pipeline{
     async update(currentTime, deltaTime){
        const [state, size] = this.#uiManager.getState();
 
+       if(this.#uiManager.didChange()){
+        console.log("changed");
+        this.#spp = 0;
+       }
+
 
         var uniformSize = 2;
         // Iterate through the size Map

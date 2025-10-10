@@ -82,7 +82,7 @@ struct Hit {
 
 struct Material{
     materialType: i32,
-    albedo: vec3f
+    albedo: vec3f,
 };
 
 struct Payload {
@@ -110,7 +110,7 @@ var<private> spheres: array<Sphere, sphereCount> = array<Sphere, sphereCount>(
 
 var<private> materials: array<Material, sphereCount> = array<Material, sphereCount>(
     Material(2, vec3f(1.0, 1.0, 1.0)), // emitter 
-    Material(1, vec3f(1.0, 0.0, 1.0)), // lambertian diffuse
+    Material(1, vec3f(0.8)), // lambertian diffuse
     Material(0, vec3f(6.0)), // lambertian diffuse
 );
 
@@ -173,9 +173,12 @@ fn sample(matID: i32, w_o: vec3f, normal: vec3f, pdf: ptr<function, f32>, seed: 
 // -----------------------------------------------------------------------------
 // Lambertian diffuse BRDF evaluation
 // -----------------------------------------------------------------------------
-fn evaluateLambertian(matID: i32, w_o: vec3f, normal: vec3f, w_i: vec3f) -> vec3f {
+fn evaluateLambertian(matID: i32, w_o: vec3f, normal: vec3f, w_i: vec3f, uv:vec2f) -> vec3f {
     let mat = materials[matID];
     // Lambertian: f = albedo / PI
+    if((i32(uv.y*1000.0) % 2 == 0)  != (i32(uv.x*10.0)%2 == 0)){
+        return vec3f(0.4)/3.14159265;
+    }
     return mat.albedo / 3.14159265;
 }
 
@@ -209,10 +212,22 @@ fn samplePrincipled(matID: i32, w_o: vec3f, normal: vec3f, pdf: ptr<function, f3
 }
 
 // evaluat principled
-fn evaluatePrincipled(matID: i32, w_o: vec3f, normal: vec3f, w_i: vec3f) -> vec3f {
+fn evaluatePrincipled(matID: i32, w_o: vec3f, normal: vec3f, w_i: vec3f, uv:vec2f) -> vec3f {
     let mat = materials[matID];
+    let baseColor = mat.albedo;
+    let roughness = params.slider;// 0.5;
+
+   
+
+    // specular layer, currently only diffuse 
+    let F = 0.0;
+    let diffuseRes = baseColor/3.1415926;
+
+
+
+
     // Lambertian: f = albedo / PI
-    return mat.albedo / 3.14159265;
+    return diffuseRes;//metallicRes + diffuseRes;
 }
 
 fn raygen( fov: f32, uv: vec2f) -> Ray {
@@ -287,11 +302,11 @@ fn chit(hit: Hit, payload: ptr<function, Payload>){
     var f: vec3f;
     if(materials[hit.id].materialType == 1){
         w_i = normalize(sample(hit.id, (*payload).w_i, hit.normal, &pdf_bsdf, &(*payload).seed));
-        f = evaluateLambertian(hit.id, (*payload).w_i, hit.normal, w_i);
+        f = evaluateLambertian(hit.id, (*payload).w_i, hit.normal, w_i, hit.uv);
     }
     if(materials[hit.id].materialType == 2){
         w_i = normalize(samplePrincipled(hit.id, (*payload).w_i, hit.normal, &pdf_bsdf, &(*payload).seed));
-        f = evaluatePrincipled(hit.id, (*payload).w_i, hit.normal, w_i);
+        f = evaluatePrincipled(hit.id, (*payload).w_i, hit.normal, w_i, hit.uv);
     }
     let cosThetaI = max(0.001, dot(hit.normal, w_i));
     (*payload).w_i = w_i;
@@ -370,8 +385,13 @@ fn main(@builtin(global_invocation_id) id : vec3u){
     }
 
 
+
     var prevColor: vec4f = textureLoad(previousAccum, vec2i(id.xy), 0);
     var newColor = (prevColor.xyz * f32(params.frameCount - 1.0) + payload.accumulatedColor) / f32(params.frameCount);
+
+    if(params.frameCount == 0.0){
+        newColor = payload.accumulatedColor;
+    }
     //var newColor = (prevColor.xyz * f32(10.0 - 1.0) + payload.accumulatedColor) / f32(10.0);
     textureStore(accumulationTexture, vec2i(id.xy), vec4f(newColor, 1.0));
 }
