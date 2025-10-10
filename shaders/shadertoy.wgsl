@@ -109,7 +109,7 @@ var<private> spheres: array<Sphere, sphereCount> = array<Sphere, sphereCount>(
 );
 
 var<private> materials: array<Material, sphereCount> = array<Material, sphereCount>(
-    Material(2, vec3f(1.0, 1.0, 1.0)), // emitter 
+    Material(2, vec3f(0.9, 0.8, 0.05)), // emitter 
     Material(1, vec3f(0.8)), // lambertian diffuse
     Material(0, vec3f(6.0)), // lambertian diffuse
 );
@@ -207,28 +207,55 @@ fn samplePrincipled(matID: i32, w_o: vec3f, normal: vec3f, pdf: ptr<function, f3
     );
 
     // PDF for cosine-weighted hemisphere
-    *pdf = max(0.0001, localDir.z / 3.14159265);
+    *pdf = max(0.001, localDir.z / 3.14159265);
     return worldDir;
 }
 
-// evaluat principled
-fn evaluatePrincipled(matID: i32, w_o: vec3f, normal: vec3f, w_i: vec3f, uv:vec2f) -> vec3f {
+fn safeVec3(v: vec3f, fallback: vec3f) -> vec3f {
+    // WGSL-safe NaN check: replace NaNs with fallback
+    let nanMask = vec3<bool>(
+        !(v.x == v.x),
+        !(v.y == v.y),
+        !(v.z == v.z)
+    );
+    return select(v, fallback, nanMask);
+}
+
+// modified schlick fresnel
+fn F_SchlickDiffuseTerm(NdotX: f32, LdotH: f32, roughness: f32) -> f32 {
+    // Prevent NaNs from invalid pow() ranges
+    let safeNdotX = max(NdotX, 0.001);
+    let safeLdotH = max(LdotH, 0.001);
+    // Eq. (1) and (2) from Burley
+    let FD90 = 0.5 + 2.0 * roughness * LdotH * LdotH;
+    return 1.0 + (FD90 - 1.0) * pow(1.0 - NdotX, 5.0);
+}
+
+fn evaluatePrincipled(matID: i32, w_o: vec3f, normal: vec3f, w_i: vec3f, uv: vec2f) -> vec3f {
     let mat = materials[matID];
     let baseColor = mat.albedo;
-    let roughness = params.slider;// 0.5;
+    let roughness = params.slider; // or params.slider if interactive
 
-   
+    let N = normalize(normal);
+    let V = normalize(w_o);
+    let L = normalize(w_i);
+    let H = normalize(V + L);
 
-    // specular layer, currently only diffuse 
-    let F = 0.0;
-    let diffuseRes = baseColor/3.1415926;
+    let NdotL = max(dot(N, L), 0.0);
+    let NdotV = max(dot(N, V), 0.0);
+    let LdotH = max(dot(L, H), 0.0);
 
+    // --- Disney Diffuse (Burley 2012) ---
+    let Fd_L = F_SchlickDiffuseTerm(NdotL, LdotH, roughness);
+    let Fd_V = F_SchlickDiffuseTerm(NdotV, LdotH, roughness);
 
+    var f_baseDiffuse = baseColor / 3.14159265 * Fd_L * Fd_V;
+    f_baseDiffuse = safeVec3(f_baseDiffuse, vec3f(0.0, 0.0, 0.0));
 
-
-    // Lambertian: f = albedo / PI
-    return diffuseRes;//metallicRes + diffuseRes;
+    // Multiply by cosine term if integrating lighting here
+    return f_baseDiffuse;
 }
+
 
 fn raygen( fov: f32, uv: vec2f) -> Ray {
 
@@ -306,9 +333,9 @@ fn chit(hit: Hit, payload: ptr<function, Payload>){
     }
     if(materials[hit.id].materialType == 2){
         w_i = normalize(samplePrincipled(hit.id, (*payload).w_i, hit.normal, &pdf_bsdf, &(*payload).seed));
-        f = evaluatePrincipled(hit.id, (*payload).w_i, hit.normal, w_i, hit.uv);
+        f = evaluatePrincipled(hit.id, -(*payload).w_i, hit.normal, w_i, hit.uv);
     }
-    let cosThetaI = max(0.001, dot(hit.normal, w_i));
+    let cosThetaI = max(0.031, dot(hit.normal, w_i));
     (*payload).w_i = w_i;
     (*payload).throughput *= f * cosThetaI / pdf_bsdf;
 }
@@ -343,14 +370,14 @@ fn main(@builtin(global_invocation_id) id : vec3u){
     seed = (seed >> 22u) ^ seed;
 
     // Optional: mix in time
-    seed = seed ^ u32(params.time * 1000.0);
+    seed = seed ^ u32(params.time * 100384970.0 * params.frameCount);
 
 
     var uv: vec2<f32> = ((vec2<f32>(id.xy) + 0.5) / vec2<f32>(dims)) * 2.0 - 1.0;
     uv.x = uv.x *800/600;
 
     // Camera position
-    var ray = raygen(100, uv);
+    var ray = raygen(50, uv);
 
     var payload = Payload();
     payload.accumulatedColor = vec3f(0.0);
@@ -388,11 +415,13 @@ fn main(@builtin(global_invocation_id) id : vec3u){
 
     var prevColor: vec4f = textureLoad(previousAccum, vec2i(id.xy), 0);
     var newColor = (prevColor.xyz * f32(params.frameCount - 1.0) + payload.accumulatedColor) / f32(params.frameCount);
-
+   // var newColor = (prevColor.xyz * f32(1000.0 - 1.0) + payload.accumulatedColor) / f32(1000.0);
+    
     if(params.frameCount == 0.0){
         newColor = payload.accumulatedColor;
     }
-    //var newColor = (prevColor.xyz * f32(10.0 - 1.0) + payload.accumulatedColor) / f32(10.0);
+
+   // newColor = vec3f(RandomValue(&seed));
     textureStore(accumulationTexture, vec2i(id.xy), vec4f(newColor, 1.0));
 }
 
