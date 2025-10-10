@@ -13,6 +13,17 @@ struct Uniforms{
 @group(0) @binding(2)
 var<uniform> params: Uniforms;
 
+@group(0) @binding(3)
+var cubemapTex: texture_cube<f32>;
+
+@group(0) @binding(4)
+var cubemapSampler: sampler;
+
+fn sampleSky(rayDir: vec3f) -> vec3f {
+    let color = textureSampleLevel(cubemapTex, cubemapSampler, normalize(rayDir), 0.0);
+    return color.rgb;
+}
+
 //Bind Group 1: Camera
 
 //struct CameraData {
@@ -104,25 +115,38 @@ var<private> materials: array<Material, sphereCount> = array<Material, sphereCou
 );
 
 // -----------------------------------------------------------------------------
+// PCG (permuted congruential generator). Thanks to:
+// www.pcg-random.org and www.shadertoy.com/view/XlGcRh
+// -----------------------------------------------------------------------------
+// PCG (Permuted Congruential Generator) for WGSL
+// -----------------------------------------------------------------------------
+// Reference: www.pcg-random.org and Shadertoy: XlGcRh
 
+fn NextRandom(state: ptr<function, u32>) -> u32 {
+    // Advance the state
+    (*state) = (*state) * 747796405u + 2891336453u;
 
-fn randomFloat(seed: ptr<function, u32>) -> f32 {
-    // xorshift-based hash
-    (*seed) ^= (*seed) << 13u;
-    (*seed) ^= (*seed) >> 17u;
-    (*seed) ^= (*seed) << 5u;
-    return f32((*seed) & 0x00FFFFFFu) / f32(0x01000000u);
+    // Permutation
+    var result: u32 = ((*state) >> (((*state) >> 28u) + 4u)) ^ (*state);
+    result = result * 277803737u;
+    result = (result >> 22u) ^ result;
+
+    return result;
 }
+
+fn RandomValue(state: ptr<function, u32>) -> f32 {
+    let r: u32 = NextRandom(state);
+    return f32(r) / 4294967295.0; // normalize to [0,1]
+}
+
 
 // -----------------------------------------------------------------------------
 // Cosine-weighted hemisphere sampling around normal
 // -----------------------------------------------------------------------------
 fn sample(matID: i32, w_o: vec3f, normal: vec3f, pdf: ptr<function, f32>, seed: ptr<function, u32>) -> vec3f {
     // Generate two random numbers in [0,1)
-
-    let r1 = randomFloat(seed);
-    let r2 = randomFloat(seed);
-
+    let r1 = RandomValue(seed);
+    let r2 = RandomValue(seed);
     // Cosine-weighted hemisphere sampling
     let phi = 2.0 * 3.14159265 * r1;
     let cosTheta = sqrt(1.0 - r2);
@@ -238,29 +262,45 @@ fn intersectScene(ray: Ray) -> Hit {
 
 @compute @workgroup_size(8, 8)
 fn main(@builtin(global_invocation_id) id : vec3u){
-
+    
     let dims = vec2u(textureDimensions(accumulationTexture));
+    var seed: u32 = id.x + (id.y+10) * dims.x + u32(params.frameCount) * 17u;
+
+    // Mix bits with some primes and XOR with time
+    seed = seed * 747796405u + 2891336453u;
+    seed = (seed >> ((seed >> 28u) + 4u)) ^ seed;
+    seed = seed * 277803737u;
+    seed = (seed >> 22u) ^ seed;
+
+    // Optional: mix in time
+    seed = seed ^ u32(params.time * 1000.0);
+
+
     var uv: vec2<f32> = ((vec2<f32>(id.xy) + 0.5) / vec2<f32>(dims)) * 2.0 - 1.0;
     uv.x = uv.x *800/600;
 
     // Camera position
-    var ray = raygen(40, uv);
+    var ray = raygen(30, uv);
 
     var payload = Payload();
     payload.accumulatedColor = vec3f(0.0);
     payload.throughput = vec3(1.0);
-    // Generate a u32 seed
-    let seed_x: u32 = u32(floor(uv.x * 10000.0));
-    let seed_y: u32 = u32(floor(uv.y * 10000.0));
-    let seed_time: u32 = u32(floor(params.time * 1000.0));
-    let seed_dims: u32 = u32(dims.y);
-    payload.seed = seed_x ^ seed_y ^ seed_time ^ seed_dims;
+    payload.seed = u32(seed);
+ 
     payload.bounces = 0;
+
+    
  
 
     for(var i = 0; i < maxBounces; i ++){
     
         let hit = intersectScene(ray); 
+
+        // miss
+        if(hit.t == -1.0 || hit.t >= 1e9 ){
+            payload.accumulatedColor += sampleSky(ray.d) * payload.throughput; 
+            break;
+        }
         payload.o = ray.d * hit.t + ray.o;
         payload.w_i = ray.d;
         chit(hit, &payload);
@@ -277,7 +317,7 @@ fn main(@builtin(global_invocation_id) id : vec3u){
 
     var prevColor: vec4f = textureLoad(previousAccum, vec2i(id.xy), 0);
     var newColor = (prevColor.xyz * f32(params.frameCount - 1.0) + payload.accumulatedColor) / f32(params.frameCount);
-
+    //var newColor = (prevColor.xyz * f32(10.0 - 1.0) + payload.accumulatedColor) / f32(10.0);
     textureStore(accumulationTexture, vec2i(id.xy), vec4f(newColor, 1.0));
 }
 

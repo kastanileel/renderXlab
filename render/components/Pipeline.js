@@ -15,6 +15,9 @@ export class Pipeline{
 
     #otherBindGroups;
 
+    #cubemapTexture;
+    #cubemapSampler;
+
     #spp;
    // same creation logic like in RXLContext.js
     static #constructed = false;
@@ -23,6 +26,52 @@ export class Pipeline{
         const device = context.getDevice();
         const width = context.getCanvas().width;
         const height = context.getCanvas().height;
+
+        //------------------------------
+        // Cubemap (todo: move to scene)
+        const faceUrls = [
+            '../../scenes/skybox/px.png', 
+            '../../scenes/skybox/nx.png',
+            '../../scenes/skybox/py.png', 
+            '../../scenes/skybox/ny.png',
+            '../../scenes/skybox/pz.png', 
+            '../../scenes/skybox/nz.png'
+        ];
+
+        const faceImages = await Promise.all(faceUrls.map(async (url) => {
+            const img = new Image();
+            img.src = url;
+            await img.decode();
+            return createImageBitmap(img);
+        }));
+
+        const widthCube = faceImages[0].width;
+        const heightCube = faceImages[0].height;
+
+        const cubemapTexture = device.createTexture({
+            size: [widthCube, heightCube, 6],
+            format: 'rgba8unorm',
+            usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST| GPUTextureUsage.RENDER_ATTACHMENT,
+            dimension: '2d',
+        });
+
+        // Upload each face
+        for (let i = 0; i < 6; i++) {
+            device.queue.copyExternalImageToTexture(
+                { source: faceImages[i] },
+                { texture: cubemapTexture, origin: [0, 0, i] },
+                [widthCube, heightCube]
+            );
+        }
+
+        const cubemapSampler = device.createSampler({
+            magFilter: 'linear',
+            minFilter: 'linear',
+            addressModeU: 'clamp-to-edge',
+            addressModeV: 'clamp-to-edge',
+            addressModeW: 'clamp-to-edge',
+        });
+
 
         // -----------------------------
         // Accumulation texture (write-only)
@@ -97,6 +146,21 @@ export class Pipeline{
                         minBindingSize: 24,
                     },
                 },
+                {
+                    binding: 3,
+                    visibility: GPUShaderStage.COMPUTE ,
+                    texture: {
+                        viewDimension: 'cube',
+                        sampleType: 'float',
+                    },
+                },
+                {
+                    binding: 4,
+                    visibility: GPUShaderStage.COMPUTE ,
+                    sampler: {
+                        type: 'filtering',
+                    },
+        },
             ],
         });
         
@@ -120,10 +184,10 @@ export class Pipeline{
         const otherBindGroups = scene.getBindGroups(context, pipeline);
 
         Pipeline.#constructed = true;
-        return new Pipeline(pipeline, context, uniformBuffer, previousAccumTexture, accumulationTexture, uiManager, otherBindGroups);
+        return new Pipeline(pipeline, context, uniformBuffer, previousAccumTexture, accumulationTexture, uiManager, otherBindGroups, cubemapTexture, cubemapSampler);
     }    
 
-    constructor(pipeline, context, uniformBuffer, previousAccumTexture, accumulationTexture, uiManager, otherBindGroups){
+    constructor(pipeline, context, uniformBuffer, previousAccumTexture, accumulationTexture, uiManager, otherBindGroups, cubemapTexture, cubemapSampler){
         if(!Pipeline.#constructed){
             throw new Error("Use Pipeline.create() for creating a new pipeline!");
         }
@@ -136,6 +200,9 @@ export class Pipeline{
         this.#uiManager = uiManager;
 
         this.#otherBindGroups = otherBindGroups;
+
+        this.#cubemapSampler = cubemapSampler;
+        this.#cubemapTexture = cubemapTexture;
 
         this.#spp = 0;
 
@@ -198,6 +265,14 @@ export class Pipeline{
             { binding: 0, resource: accumulationView },
             { binding: 1, resource: previousView },
             { binding: 2, resource: { buffer: this.#uniformBuffer } },
+            {
+                binding: 3,
+                resource: this.#cubemapTexture.createView({ dimension: 'cube' }),
+            },
+            {
+                binding: 4,
+                resource: this.#cubemapSampler,
+            },
         ],
     });
 
