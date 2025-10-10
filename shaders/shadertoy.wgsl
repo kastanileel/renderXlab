@@ -234,7 +234,7 @@ fn F_SchlickDiffuseTerm(NdotX: f32, LdotH: f32, roughness: f32) -> f32 {
 fn evaluatePrincipled(matID: i32, w_o: vec3f, normal: vec3f, w_i: vec3f, uv: vec2f) -> vec3f {
     let mat = materials[matID];
     let baseColor = mat.albedo;
-    let roughness = params.slider; // or params.slider if interactive
+    let roughness = 1.0;//params.slider; // or params.slider if interactive
 
     let N = normalize(normal);
     let V = normalize(w_o);
@@ -253,7 +253,10 @@ fn evaluatePrincipled(matID: i32, w_o: vec3f, normal: vec3f, w_i: vec3f, uv: vec
     f_baseDiffuse = safeVec3(f_baseDiffuse, vec3f(0.0, 0.0, 0.0));
 
     // Multiply by cosine term if integrating lighting here
-    return f_baseDiffuse;
+    if(params.slider > 0.5){
+    return abs(f_baseDiffuse);
+    }
+    return baseColor/3.1415;
 }
 
 
@@ -361,7 +364,7 @@ fn intersectScene(ray: Ray) -> Hit {
 fn main(@builtin(global_invocation_id) id : vec3u){
     
     let dims = vec2u(textureDimensions(accumulationTexture));
-    var seed: u32 = id.x + (id.y+10) * dims.x + u32(params.frameCount) * 17u;
+    var seed: u32 = id.x + (id.y*1000) * dims.x + u32(params.frameCount) * 17u;
 
     // Mix bits with some primes and XOR with time
     seed = seed * 747796405u + 2891336453u;
