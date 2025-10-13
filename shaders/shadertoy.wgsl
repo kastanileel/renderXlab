@@ -1,3 +1,5 @@
+const PI = 3.14159265;
+
 @group(0) @binding(0)
 var accumulationTexture: texture_storage_2d<rgba32float, write>;
 
@@ -20,7 +22,8 @@ var cubemapTex: texture_cube<f32>;
 var cubemapSampler: sampler;
 
 fn sampleSky(rayDir: vec3f) -> vec3f {
-    let color = textureSampleLevel(cubemapTex, cubemapSampler, normalize(rayDir), 0.0);
+    var color = textureSampleLevel(cubemapTex, cubemapSampler, normalize(rayDir), 0.0);
+    color = vec4f(vec3f(0.5), 1.0);
     return color.rgb;
 }
 
@@ -99,7 +102,8 @@ struct Payload {
 // -----------------------------------------------------------------------------
 // Scene setup: 3 spheres
 // -----------------------------------------------------------------------------
-const sphereCount = 3u;
+
+/*const sphereCount = 3u;
 const maxBounces = 6;
 
 var<private> spheres: array<Sphere, sphereCount> = array<Sphere, sphereCount>(
@@ -111,9 +115,20 @@ var<private> spheres: array<Sphere, sphereCount> = array<Sphere, sphereCount>(
 var<private> materials: array<Material, sphereCount> = array<Material, sphereCount>(
     Material(2, vec3f(0.9, 0.8, 0.05)), // emitter 
     Material(1, vec3f(0.8)), // lambertian diffuse
-    Material(0, vec3f(6.0)), // lambertian diffuse
+    Material(0, vec3f(0.0)), // emitter 
+);
+*/
+
+const sphereCount = 1u;
+const maxBounces = 3;
+
+var<private> spheres: array<Sphere, sphereCount> = array<Sphere, sphereCount>(
+    Sphere(vec3f(0.0, 0.0, 0.0), 1.0, 0),
 );
 
+var<private> materials: array<Material, sphereCount> = array<Material, sphereCount>(
+    Material(2, vec3f(1.0))
+);
 // -----------------------------------------------------------------------------
 // PCG (permuted congruential generator). Thanks to:
 // www.pcg-random.org and www.shadertoy.com/view/XlGcRh
@@ -144,30 +159,22 @@ fn RandomValue(state: ptr<function, u32>) -> f32 {
 // Cosine-weighted hemisphere sampling around normal
 // -----------------------------------------------------------------------------
 fn sample(matID: i32, w_o: vec3f, normal: vec3f, pdf: ptr<function, f32>, seed: ptr<function, u32>) -> vec3f {
-    // Generate two random numbers in [0,1)
-    let r1 = RandomValue(seed);
-    let r2 = RandomValue(seed);
-    // Cosine-weighted hemisphere sampling
-    let phi = 2.0 * 3.14159265 * r1;
-    let cosTheta = sqrt(1.0 - r2);
-    let sinTheta = sqrt(r2);
 
-    let localDir = vec3f(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+    var rr = vec2f(RandomValue(seed), RandomValue(seed));
+  
+    var x = cos(2.0f*PI*rr.x) * 2.0f * sqrt(rr.y*(1.0-rr.y));
+    var y = sin(2.0f*PI*rr.x) * 2.0f * sqrt(rr.y*(1.0-rr.y));
+    var z = 1.0 - 2.0*rr.y;
 
-    // Create an orthonormal basis around the normal
-    let up = select(vec3f(0.0, 1.0, 0.0), vec3f(1.0, 0.0, 0.0), abs(normal.y) > 0.999);
-    let tangent = normalize(cross(up, normal));
-    let bitangent = cross(normal, tangent);
+    // PDF for uniform hemisphere
+    *pdf =  max(0.0001, 1.0/(2.0*PI));
+    var w_i = normalize(vec3f(x, y, z));
 
-    let worldDir = normalize(
-        localDir.x * tangent +
-        localDir.y * bitangent +
-        localDir.z * normal
-    );
+    if(dot(w_i, normal) <= 0.0){
+        w_i = -w_i;
+    }
 
-    // PDF for cosine-weighted hemisphere
-    *pdf = max(0.0001, localDir.z / 3.14159265);
-    return worldDir;
+    return w_i;
 }
 
 // -----------------------------------------------------------------------------
@@ -176,9 +183,9 @@ fn sample(matID: i32, w_o: vec3f, normal: vec3f, pdf: ptr<function, f32>, seed: 
 fn evaluateLambertian(matID: i32, w_o: vec3f, normal: vec3f, w_i: vec3f, uv:vec2f) -> vec3f {
     let mat = materials[matID];
     // Lambertian: f = albedo / PI
-    if((i32(uv.y*1000.0) % 2 == 0)  != (i32(uv.x*10.0)%2 == 0)){
-        return vec3f(0.4)/3.14159265;
-    }
+    //if((i32(uv.y*1000.0) % 2 == 0)  != (i32(uv.x*10.0)%2 == 0)){
+    //    return vec3f(0.4)/3.14159265;
+   // }
     return mat.albedo / 3.14159265;
 }
 
@@ -186,29 +193,21 @@ fn evaluateLambertian(matID: i32, w_o: vec3f, normal: vec3f, w_i: vec3f, uv:vec2
 
 fn samplePrincipled(matID: i32, w_o: vec3f, normal: vec3f, pdf: ptr<function, f32>, seed: ptr<function, u32>) -> vec3f {
     // Generate two random numbers in [0,1)
-    let r1 = RandomValue(seed);
-    let r2 = RandomValue(seed);
-    // Cosine-weighted hemisphere sampling
-    let phi = 2.0 * 3.14159265 * r1;
-    let cosTheta = sqrt(1.0 - r2);
-    let sinTheta = sqrt(r2);
+    var rr = vec2f(RandomValue(seed), RandomValue(seed));
+  
+    var x = cos(2.0f*PI*rr.x) * 2.0f * sqrt(rr.y*(1.0-rr.y));
+    var y = sin(2.0f*PI*rr.x) * 2.0f * sqrt(rr.y*(1.0-rr.y));
+    var z = 1.0 - 2.0*rr.y;
 
-    let localDir = vec3f(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+    // PDF for uniform hemisphere
+    *pdf =  max(0.0001, 1.0/(2.0*PI));
+    var w_i = normalize(vec3f(x, y, z));
 
-    // Create an orthonormal basis around the normal
-    let up = select(vec3f(0.0, 1.0, 0.0), vec3f(1.0, 0.0, 0.0), abs(normal.y) > 0.999);
-    let tangent = normalize(cross(up, normal));
-    let bitangent = cross(normal, tangent);
+    if(dot(w_i, normal) <= 0.0){
+        w_i = -w_i;
+    }
 
-    let worldDir = normalize(
-        localDir.x * tangent +
-        localDir.y * bitangent +
-        localDir.z * normal
-    );
-
-    // PDF for cosine-weighted hemisphere
-    *pdf = max(0.001, localDir.z / 3.14159265);
-    return worldDir;
+    return w_i;
 }
 
 fn safeVec3(v: vec3f, fallback: vec3f) -> vec3f {
@@ -297,7 +296,7 @@ fn intersect_sphere(ray: Ray, sphere: Sphere) -> Hit {
     let disc = b*b - 4.0*a*c;
 
     if (disc < 0.0) {
-        return Hit(-1.0, vec2f(0.0), vec3f(0.0), 0);
+        return Hit(-1.0, vec2f(0.0), vec3f(0.0), sphere.id);
     }
 
     let sqrt_disc = sqrt(disc);
@@ -305,7 +304,7 @@ fn intersect_sphere(ray: Ray, sphere: Sphere) -> Hit {
     if (t < 0.0) {
         t = (-b + sqrt_disc) / (2.0 * a);
         if (t < 0.0) {
-            return Hit(-1.0, vec2f(0.0), vec3f(0.0), 0);
+            return Hit(-1.0, vec2f(0.0), vec3f(0.0), sphere.id);
         }
     }
 
@@ -330,7 +329,7 @@ fn chit(hit: Hit, payload: ptr<function, Payload>){
     var pdf_bsdf: f32 = 0.0;
     var w_i: vec3f;
     var f: vec3f;
-    if(materials[hit.id].materialType == 1){
+    if(materials[hit.id].materialType == 1 ){
         w_i = normalize(sample(hit.id, (*payload).w_i, hit.normal, &pdf_bsdf, &(*payload).seed));
         f = evaluateLambertian(hit.id, (*payload).w_i, hit.normal, w_i, hit.uv);
     }
@@ -338,8 +337,11 @@ fn chit(hit: Hit, payload: ptr<function, Payload>){
         w_i = normalize(samplePrincipled(hit.id, (*payload).w_i, hit.normal, &pdf_bsdf, &(*payload).seed));
         f = evaluatePrincipled(hit.id, -(*payload).w_i, hit.normal, w_i, hit.uv);
     }
-    let cosThetaI = max(0.031, dot(hit.normal, w_i));
+
+    var cosThetaI = max(0.001, dot(hit.normal, w_i));
     (*payload).w_i = w_i;
+
+    //cosThetaI = 1.0;
     (*payload).throughput *= f * cosThetaI / pdf_bsdf;
 }
 
@@ -373,7 +375,7 @@ fn main(@builtin(global_invocation_id) id : vec3u){
     seed = (seed >> 22u) ^ seed;
 
     // Optional: mix in time
-    seed = seed ^ u32(params.time * 100384970.0 * params.frameCount);
+    seed = seed ^ u32(params.time * 100384970.0);
 
 
     var uv: vec2<f32> = ((vec2<f32>(id.xy) + 0.5) / vec2<f32>(dims)) * 2.0 - 1.0;
@@ -389,19 +391,19 @@ fn main(@builtin(global_invocation_id) id : vec3u){
  
     payload.bounces = 0;
 
-    
- 
-
     for(var i = 0; i < maxBounces; i ++){
     
         let hit = intersectScene(ray); 
-
+        //payload.accumulatedColor = (hit.normal+1.0)/2.0;
+        //break;
+       
         // miss
-        if(hit.t == -1.0 || hit.t >= 1e9 ){
-            payload.accumulatedColor += sampleSky(ray.d) * payload.throughput; 
+        if(hit.t < .0 || hit.t>=1e9){
+            payload.accumulatedColor =sampleSky(ray.d) * payload.throughput; 
             break;
         }
-        payload.o = ray.d * hit.t + ray.o;
+
+        payload.o = ray.d * hit.t + ray.o + 0.001 * ray.d;
         payload.w_i = ray.d;
         chit(hit, &payload);
     
@@ -411,20 +413,22 @@ fn main(@builtin(global_invocation_id) id : vec3u){
 
         ray.o = payload.o;
         ray.d = payload.w_i;
-   
     }
 
+   // payload.accumulatedColor = safeVec3(payload.accumulatedColor, vec3f(1.0, 0.0, 0.0));
 
 
     var prevColor: vec4f = textureLoad(previousAccum, vec2i(id.xy), 0);
     var newColor = (prevColor.xyz * f32(params.frameCount - 1.0) + payload.accumulatedColor) / f32(params.frameCount);
-   // var newColor = (prevColor.xyz * f32(1000.0 - 1.0) + payload.accumulatedColor) / f32(1000.0);
+    //var newColor = (prevColor.xyz * f32(1000.0 - 1.0) + payload.accumulatedColor) / f32(1000.0);
     
     if(params.frameCount == 0.0){
         newColor = payload.accumulatedColor;
     }
 
    // newColor = vec3f(RandomValue(&seed));
-    textureStore(accumulationTexture, vec2i(id.xy), vec4f(newColor, 1.0));
+    textureStore(accumulationTexture, vec2i(id.xy), vec4f(newColor, 1.0)); 
+
+//    textureStore(accumulationTexture, vec2i(id.xy), vec4f(col, 1.0)); 
 }
 
