@@ -23,7 +23,7 @@ var cubemapSampler: sampler;
 
 fn sampleSky(rayDir: vec3f) -> vec3f {
     var color = textureSampleLevel(cubemapTex, cubemapSampler, normalize(rayDir), 0.0);
-    color = vec4f(vec3f(0.5), 1.0);
+    //color = vec4f(vec3f(0.5), 1.0);
     return color.rgb;
 }
 
@@ -102,7 +102,7 @@ struct Payload {
 // -----------------------------------------------------------------------------
 // Scene setup: 3 spheres
 // -----------------------------------------------------------------------------
- /*
+// /*
 const sphereCount = 3u;
 const maxBounces = 6;
 
@@ -115,9 +115,9 @@ var<private> spheres: array<Sphere, sphereCount> = array<Sphere, sphereCount>(
 var<private> materials: array<Material, sphereCount> = array<Material, sphereCount>(
     Material(2, vec3f(0.9, 0.8, 0.05)), // emitter 
     Material(1, vec3f(0.8)), // lambertian diffuse
-    Material(0, vec3f(0.0)), // emitter 
+    Material(0, vec3f(5.0)), // emitter 
 );
-*/
+/*
 
 const sphereCount = 1u;
 const maxBounces = 3;
@@ -128,7 +128,7 @@ var<private> spheres: array<Sphere, sphereCount> = array<Sphere, sphereCount>(
 
 var<private> materials: array<Material, sphereCount> = array<Material, sphereCount>(
     Material(2, vec3f(1.0))
-);// */
+); */
 // -----------------------------------------------------------------------------
 // PCG (permuted congruential generator). Thanks to:
 // www.pcg-random.org and www.shadertoy.com/view/XlGcRh
@@ -193,7 +193,7 @@ fn evaluateLambertian(matID: i32, w_o: vec3f, normal: vec3f, w_i: vec3f, uv:vec2
 
 fn samplePrincipled(matID: i32, w_o: vec3f, normal: vec3f, pdf: ptr<function, f32>, seed: ptr<function, u32>) -> vec3f {
     // Generate two random numbers in [0,1)
-    var rr = vec2f(RandomValue(seed), RandomValue(seed));
+/*    var rr = vec2f(RandomValue(seed), RandomValue(seed));
   
     var x = cos(2.0f*PI*rr.x) * 2.0f * sqrt(rr.y*(1.0-rr.y));
     var y = sin(2.0f*PI*rr.x) * 2.0f * sqrt(rr.y*(1.0-rr.y));
@@ -206,7 +206,7 @@ fn samplePrincipled(matID: i32, w_o: vec3f, normal: vec3f, pdf: ptr<function, f3
     if(dot(w_i, normal) < 0.0){
         w_i = -w_i;
     }
-    return w_i;
+    return w_i;*/
 }
 
 fn safeVec3(v: vec3f, fallback: vec3f) -> vec3f {
@@ -219,74 +219,64 @@ fn safeVec3(v: vec3f, fallback: vec3f) -> vec3f {
     return select(v, fallback, nanMask);
 }
 
-fn F_Schlick(VdotH: f32) -> f32{
-    var etaRatio = 1.5;
-    var r0 = pow((1.0-etaRatio)/(1.0+etaRatio), 2.0); 
-    return r0 + (1.0-r0)*(pow(1.0-VdotH, 5.0));
+fn F_Schlick(VdotH: f32, f0: vec3f) -> vec3f{
+    // assumes ior of 1.5
+    return f0 + (1.0-f0)*(pow(1.0-VdotH, 5.0));
 }
 
-fn GGX(NdotH: f32, roughness: f32) -> f32 {
-    let alpha = roughness * roughness;
-    let alpha2 = alpha * alpha;
-    let denom = (NdotH * NdotH) * (alpha2 - 1.0) + 1.0;
-    return alpha2 / (3.14159265 * denom * denom);
+fn GGX(n: vec3f, h:vec3f, roughness: f32) -> f32{
+    var sqr_rough = roughness * roughness;
+    var NdotH = dot(n, h);
+    var sqrt_denom = NdotH * NdotH * (sqr_rough-1.0) + 1.0;
+    return (sqr_rough)/(PI * sqrt_denom * sqrt_denom);
 }
 
-fn G_SchlickGGX(NdotX: f32, roughness: f32) -> f32 {
-    let r = roughness + 1.0;
-    let k = (r * r) / 8.0;
-    return NdotX / (NdotX * (1.0 - k) + k);
+fn GeometrySchlickGGX(NdotV: f32, k: f32)-> f32
+{
+    var nom   = NdotV;
+    var denom = NdotV * (1.0 - k) + k;
+	
+    return nom / denom;
 }
-
-fn G_Smith(NdotV: f32, NdotL: f32, roughness: f32) -> f32 {
-    let gv = G_SchlickGGX(NdotV, roughness);
-    let gl = G_SchlickGGX(NdotL, roughness);
-    return gv * gl;
+  
+fn GeometrySmith(N: vec3f, V: vec3f, L: vec3f, k: f32) -> f32
+{
+    var NdotV = max(dot(N, V), 0.0);
+    var NdotL = max(dot(N, L), 0.0);
+    var ggx1 = GeometrySchlickGGX(NdotV, k);
+    var ggx2 = GeometrySchlickGGX(NdotL, k);
+	
+    return ggx1 * ggx2;
 }
-
-
 
 fn evaluatePrincipled(matID: i32, w_o: vec3f, normal: vec3f, w_i: vec3f, uv: vec2f) -> vec3f {
-
-    if(dot(normalize(w_o), normal)> 0.0){
-        return vec3f(1.0, 0.0, 1.0);
-    }
-    return vec3f(0.0, 1.0, 0.0);
-    /*let mat = materials[matID];
+    let mat = materials[matID];
     let baseColor = mat.albedo;
-    let roughness = params.slider;
+    let roughness = max(0.001, params.slider);
 
+   var f_baseDiffuse = baseColor / 3.14159265;
 
-
-    let L = normalize(w_i);
-    let H = normalize(V + L);
-
-    let NdotL = dot(N, L);
-    let NdotV = dot(N, V);
-    let NdotH = max(dot(N, H), 0.0);
-    let VdotH = max(dot(V, H), 0.0);
-    let LdotH = max(dot(L, H), 0.0);
-
-
-    // --- Disney Diffuse (Burley 2012) ---
-    var vis = 1.0;
-    if( NdotV <= 0.0){
-        //vis = 0.0;
-    }
-    var energyBias = mix(0.0, 0.5, roughness);
-    var energyFactor = mix(1.0, 1.0/1.51, roughness);
-    var FD90 = energyBias + 2.0 * LdotH * LdotH * roughness;
-    var FdV = 1.0 + (FD90 - 1.0) * pow(1.0 - NdotV, 5.0);
-    var FdL = 1.0 + (FD90 - 1.0) * pow(1.0 - NdotL, 5.0);
-    var f_baseDiffuse = baseColor / 3.14159265 * FdV * FdL * energyFactor * vis;
-
+    var NdotV = dot(normal, w_o);
+    var NdotL = dot(normal, w_i);
+    var H = normalize(w_o + w_i);
     // --- Cook-Torrance Specular ---
-    let F =1.0;// //F_Schlick(VdotH);
-    let D = GGX(NdotH, roughness);
-    let G = 1.0;//G_Smith(NdotV, NdotL, roughness);
-    let f_metal = (F * G * D);// / (4.0 * max(NdotL * NdotV, 0.001));
 
-    return  f_baseDiffuse;*/
+    //assume ior = 1.5
+    var F0 = vec3f(0.04);
+    var metalness = 1.0;
+    F0 = mix(F0, baseColor, metalness);
+    let F = F_Schlick(dot(w_o, H), F0);
+
+    let D = GGX(normal, H, roughness);
+
+    // mapping
+    let k = roughness/2.0;//*roughness;
+    let G = GeometrySmith(normal, w_o, w_i, k);
+    
+    let f_metal = (F * G * D) / (4.0 * max(NdotL * NdotV, 0.001));
+
+    return f_metal * vec3f(1.0) + (1.0-F)*f_baseDiffuse;
+    return f_baseDiffuse;
 }
 
 
@@ -434,10 +424,6 @@ fn main(@builtin(global_invocation_id) id : vec3u){
             break;
         }
 
-        if(i == 1){
-            payload.accumulatedColor = (hit.normal + 1.0)/2.0;
-            break;
-        }
 
         chit(hit, &payload);
         
