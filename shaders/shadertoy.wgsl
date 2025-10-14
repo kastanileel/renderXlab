@@ -92,8 +92,8 @@ struct Payload {
     accumulatedColor: vec3f,
     throughput: vec3f,
 
-    w_i: vec3f,     // outgoing direction (view dir)
-    o: vec3f,
+    o: vec3f,     // outgoing direction (view dir)
+    d: vec3f,
 
     bounces: i32,
     seed: u32,      // random seed
@@ -102,8 +102,8 @@ struct Payload {
 // -----------------------------------------------------------------------------
 // Scene setup: 3 spheres
 // -----------------------------------------------------------------------------
-
-/*const sphereCount = 3u;
+ /*
+const sphereCount = 3u;
 const maxBounces = 6;
 
 var<private> spheres: array<Sphere, sphereCount> = array<Sphere, sphereCount>(
@@ -128,7 +128,7 @@ var<private> spheres: array<Sphere, sphereCount> = array<Sphere, sphereCount>(
 
 var<private> materials: array<Material, sphereCount> = array<Material, sphereCount>(
     Material(2, vec3f(1.0))
-);
+);// */
 // -----------------------------------------------------------------------------
 // PCG (permuted congruential generator). Thanks to:
 // www.pcg-random.org and www.shadertoy.com/view/XlGcRh
@@ -203,10 +203,9 @@ fn samplePrincipled(matID: i32, w_o: vec3f, normal: vec3f, pdf: ptr<function, f3
     *pdf =  max(0.0001, 1.0/(2.0*PI));
     var w_i = normalize(vec3f(x, y, z));
 
-    if(dot(w_i, normal) <= 0.0){
+    if(dot(w_i, normal) < 0.0){
         w_i = -w_i;
     }
-
     return w_i;
 }
 
@@ -220,42 +219,74 @@ fn safeVec3(v: vec3f, fallback: vec3f) -> vec3f {
     return select(v, fallback, nanMask);
 }
 
-// modified schlick fresnel
-fn F_SchlickDiffuseTerm(NdotX: f32, LdotH: f32, roughness: f32) -> f32 {
-    // Prevent NaNs from invalid pow() ranges
-    let safeNdotX = max(NdotX, 0.001);
-    let safeLdotH = max(LdotH, 0.001);
-    // Eq. (1) and (2) from Burley
-    let FD90 = 0.5 + 2.0 * roughness * LdotH * LdotH;
-    return 1.0 + (FD90 - 1.0) * pow(1.0 - NdotX, 5.0);
+fn F_Schlick(VdotH: f32) -> f32{
+    var etaRatio = 1.5;
+    var r0 = pow((1.0-etaRatio)/(1.0+etaRatio), 2.0); 
+    return r0 + (1.0-r0)*(pow(1.0-VdotH, 5.0));
 }
 
-fn evaluatePrincipled(matID: i32, w_o: vec3f, normal: vec3f, w_i: vec3f, uv: vec2f) -> vec3f {
-    let mat = materials[matID];
-    let baseColor = mat.albedo;
-    let roughness = 1.0;//params.slider; // or params.slider if interactive
+fn GGX(NdotH: f32, roughness: f32) -> f32 {
+    let alpha = roughness * roughness;
+    let alpha2 = alpha * alpha;
+    let denom = (NdotH * NdotH) * (alpha2 - 1.0) + 1.0;
+    return alpha2 / (3.14159265 * denom * denom);
+}
 
-    let N = normalize(normal);
-    let V = normalize(w_o);
+fn G_SchlickGGX(NdotX: f32, roughness: f32) -> f32 {
+    let r = roughness + 1.0;
+    let k = (r * r) / 8.0;
+    return NdotX / (NdotX * (1.0 - k) + k);
+}
+
+fn G_Smith(NdotV: f32, NdotL: f32, roughness: f32) -> f32 {
+    let gv = G_SchlickGGX(NdotV, roughness);
+    let gl = G_SchlickGGX(NdotL, roughness);
+    return gv * gl;
+}
+
+
+
+fn evaluatePrincipled(matID: i32, w_o: vec3f, normal: vec3f, w_i: vec3f, uv: vec2f) -> vec3f {
+
+    if(dot(normalize(w_o), normal)> 0.0){
+        return vec3f(1.0, 0.0, 1.0);
+    }
+    return vec3f(0.0, 1.0, 0.0);
+    /*let mat = materials[matID];
+    let baseColor = mat.albedo;
+    let roughness = params.slider;
+
+
+
     let L = normalize(w_i);
     let H = normalize(V + L);
 
-    let NdotL = max(dot(N, L), 0.0);
-    let NdotV = max(dot(N, V), 0.0);
+    let NdotL = dot(N, L);
+    let NdotV = dot(N, V);
+    let NdotH = max(dot(N, H), 0.0);
+    let VdotH = max(dot(V, H), 0.0);
     let LdotH = max(dot(L, H), 0.0);
 
+
     // --- Disney Diffuse (Burley 2012) ---
-    let Fd_L = F_SchlickDiffuseTerm(NdotL, LdotH, roughness);
-    let Fd_V = F_SchlickDiffuseTerm(NdotV, LdotH, roughness);
-
-    var f_baseDiffuse = baseColor / 3.14159265 * Fd_L * Fd_V;
-    f_baseDiffuse = safeVec3(f_baseDiffuse, vec3f(0.0, 0.0, 0.0));
-
-    // Multiply by cosine term if integrating lighting here
-    if(params.slider > 0.5){
-    return abs(f_baseDiffuse);
+    var vis = 1.0;
+    if( NdotV <= 0.0){
+        //vis = 0.0;
     }
-    return baseColor/3.1415;
+    var energyBias = mix(0.0, 0.5, roughness);
+    var energyFactor = mix(1.0, 1.0/1.51, roughness);
+    var FD90 = energyBias + 2.0 * LdotH * LdotH * roughness;
+    var FdV = 1.0 + (FD90 - 1.0) * pow(1.0 - NdotV, 5.0);
+    var FdL = 1.0 + (FD90 - 1.0) * pow(1.0 - NdotL, 5.0);
+    var f_baseDiffuse = baseColor / 3.14159265 * FdV * FdL * energyFactor * vis;
+
+    // --- Cook-Torrance Specular ---
+    let F =1.0;// //F_Schlick(VdotH);
+    let D = GGX(NdotH, roughness);
+    let G = 1.0;//G_Smith(NdotV, NdotL, roughness);
+    let f_metal = (F * G * D);// / (4.0 * max(NdotL * NdotV, 0.001));
+
+    return  f_baseDiffuse;*/
 }
 
 
@@ -319,6 +350,7 @@ fn intersect_sphere(ray: Ray, sphere: Sphere) -> Hit {
 }
 
 fn chit(hit: Hit, payload: ptr<function, Payload>){
+
     // emitter
     if (materials[hit.id].materialType == 0) {
         (*payload).accumulatedColor = (*payload).throughput * materials[hit.id].albedo;
@@ -330,17 +362,16 @@ fn chit(hit: Hit, payload: ptr<function, Payload>){
     var w_i: vec3f;
     var f: vec3f;
     if(materials[hit.id].materialType == 1 ){
-        w_i = normalize(sample(hit.id, (*payload).w_i, hit.normal, &pdf_bsdf, &(*payload).seed));
-        f = evaluateLambertian(hit.id, (*payload).w_i, hit.normal, w_i, hit.uv);
+        w_i = normalize(sample(hit.id, -(*payload).d, hit.normal, &pdf_bsdf, &(*payload).seed));
+        f = evaluateLambertian(hit.id, -(*payload).d, hit.normal, w_i, hit.uv);
     }
     if(materials[hit.id].materialType == 2){
-        w_i = normalize(samplePrincipled(hit.id, (*payload).w_i, hit.normal, &pdf_bsdf, &(*payload).seed));
-        f = evaluatePrincipled(hit.id, -(*payload).w_i, hit.normal, w_i, hit.uv);
+        w_i = normalize(samplePrincipled(hit.id, -(*payload).d, hit.normal, &pdf_bsdf, &(*payload).seed));
+        f = evaluatePrincipled(hit.id, -(*payload).d, hit.normal, w_i, hit.uv);
     }
 
     var cosThetaI = max(0.001, dot(hit.normal, w_i));
-    (*payload).w_i = w_i;
-
+    (*payload).d = w_i;
     //cosThetaI = 1.0;
     (*payload).throughput *= f * cosThetaI / pdf_bsdf;
 }
@@ -382,37 +413,40 @@ fn main(@builtin(global_invocation_id) id : vec3u){
     uv.x = uv.x *800/600;
 
     // Camera position
-    var ray = raygen(50, uv);
+    let ray = raygen(50, uv);
 
     var payload = Payload();
     payload.accumulatedColor = vec3f(0.0);
     payload.throughput = vec3(1.0);
     payload.seed = u32(seed);
+    payload.o = ray.o;
+    payload.d = ray.d;
  
     payload.bounces = 0;
 
     for(var i = 0; i < maxBounces; i ++){
-    
-        let hit = intersectScene(ray); 
-        //payload.accumulatedColor = (hit.normal+1.0)/2.0;
-        //break;
-       
+        var hit = intersectScene(Ray(payload.o, payload.d)); 
+
+        var p = payload.d * hit.t + payload.o;
         // miss
-        if(hit.t < .0 || hit.t>=1e9){
-            payload.accumulatedColor =sampleSky(ray.d) * payload.throughput; 
+        if((hit.t <= .0 || hit.t>=1e9 )){
+            payload.accumulatedColor = sampleSky(payload.d) * payload.throughput; 
             break;
         }
 
-        payload.o = ray.d * hit.t + ray.o + 0.001 * ray.d;
-        payload.w_i = ray.d;
+        if(i == 1){
+            payload.accumulatedColor = (hit.normal + 1.0)/2.0;
+            break;
+        }
+
         chit(hit, &payload);
+        
+        payload.o = p + 0.001 * payload.d;
     
         if(payload.bounces >= maxBounces){
             break;
         }
 
-        ray.o = payload.o;
-        ray.d = payload.w_i;
     }
 
    // payload.accumulatedColor = safeVec3(payload.accumulatedColor, vec3f(1.0, 0.0, 0.0));
