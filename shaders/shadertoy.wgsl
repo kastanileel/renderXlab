@@ -190,6 +190,34 @@ fn evaluateLambertian(matID: i32, w_o: vec3f, normal: vec3f, w_i: vec3f, uv:vec2
 }
 
 // sampling of principled
+fn tangent_to_world(N: vec3<f32>) -> mat3x3<f32> {
+    // Pick a helper 'up' vector to avoid degeneracy
+    let up: vec3<f32> = select(
+        vec3<f32>(0.0, 0.0, 1.0),
+        vec3<f32>(1.0, 0.0, 0.0),
+        abs(N.z) >= 0.999
+    );
+
+    let tangent: vec3<f32> = normalize(cross(up, N));
+    let bitangent: vec3<f32> = cross(N, tangent);
+
+    // Return the TBN matrix (columns are tangent space axes)
+    return mat3x3<f32>(tangent, bitangent, N);
+}
+
+fn ggx_pdf(N: vec3<f32>, V: vec3<f32>, h: vec3<f32>, alpha: f32) -> f32 {
+    let NoH = max(dot(N, h), 0.0);
+    let VoH = max(dot(V, h), 0.0);
+
+    // GGX NDF
+    let a2 = alpha * alpha;
+    let denom = (NoH * NoH) * (a2 - 1.0) + 1.0;
+    let D = a2 / (PI * denom * denom);
+
+    // PDF over light direction
+    return (D * NoH) / (4.0 * VoH);
+}
+
 
 fn samplePrincipled(matID: i32, w_o: vec3f, normal: vec3f, pdf: ptr<function, f32>, seed: ptr<function, u32>) -> vec3f {
     // Generate two random numbers in [0,1)
@@ -207,6 +235,38 @@ fn samplePrincipled(matID: i32, w_o: vec3f, normal: vec3f, pdf: ptr<function, f3
         w_i = -w_i;
     }
     return w_i;*/
+    
+    //GGX sampling
+    let roughness = max(0.001, params.slider);
+
+    // GGX importance sampling of the half-vector
+    // sampling GGX
+    var epsilon = RandomValue(seed);
+    var theta_m = acos(
+        sqrt(
+            (1.0-epsilon)/
+            (epsilon * (roughness*roughness-1.0) + 1.0)
+        )
+    );
+    var azimuth = RandomValue(seed) * 2.0 *PI;
+
+    // creating H local
+    var cosTheta = cos(theta_m);
+    var sinTheta = sin(theta_m);
+    var h_local = vec3f(
+        sinTheta * cos(azimuth),
+        sinTheta * sin(azimuth),
+        cosTheta
+    );
+
+    // transforming h local
+    let TBN = tangent_to_world(normal); 
+    var H = normalize(TBN * h_local);
+
+    *pdf = max(0.001, ggx_pdf(normal, w_o, H, roughness));
+
+    return normalize(reflect(-w_o, H));
+
 }
 
 fn safeVec3(v: vec3f, fallback: vec3f) -> vec3f {
