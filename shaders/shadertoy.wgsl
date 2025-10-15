@@ -220,7 +220,16 @@ fn ggx_pdf(N: vec3<f32>, V: vec3<f32>, h: vec3<f32>, alpha: f32) -> f32 {
     return (D * NoH) / (4.0 * VoH);
 }
 
+fn ggx_ansio_pdf(N: vec3<f32>, V: vec3<f32>, h: vec3<f32>, alphaX: f32, alphaY: f32) -> f32 {
+    let NoH = max(dot(N, h), 0.0);
+    let VoH = max(dot(V, h), 0.0);
 
+    // GGX NDF
+    let D = GGX_aniso(N, h, alphaX, alphaY);
+
+    // PDF over light direction
+    return (D * NoH) / (4.0 * VoH);
+}
 fn samplePrincipled(matID: i32, w_o: vec3f, normal: vec3f, pdf: ptr<function, f32>, seed: ptr<function, u32>) -> vec3f {
     //GGX sampling
     let roughnessX = max(0.001, params.roughnessX);
@@ -274,7 +283,7 @@ fn samplePrincipled(matID: i32, w_o: vec3f, normal: vec3f, pdf: ptr<function, f3
     let TBN = tangent_to_world(normal); 
     var H = normalize(TBN * h_local);
 
-    var ps = ggx_pdf(normal, w_o, H, roughness);
+    var ps = ggx_ansio_pdf(normal, w_o, H, roughnessX, roughnessY);
     *pdf = max(1e-6f, metalness * ps);   
     //*pdf = mix(metalness, 1.0/(2.0*PI), max(0.001, ggx_pdf(normal, w_o, H, roughness)));
 
