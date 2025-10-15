@@ -315,7 +315,7 @@ fn GGX(n: vec3f, h:vec3f, roughness: f32) -> f32{
 
 fn makeTangent(n: vec3f) -> vec3f{
     var t = vec3f(1.0, 0.0, 0.0);
-    if(dot(n, t) > 0.95){
+    if(dot(n, t) > 0.999){
         t = vec3f(0.0, 1.0, 0.0);
     }
 
@@ -337,7 +337,7 @@ fn GGX_aniso(n:vec3f, h:vec3f, roughnessX: f32, roughnessY: f32)-> f32{
     var a = (cosPhi*cosPhi) / (roughnessX*roughnessX) + (sinPhi*sinPhi) / (roughnessY*roughnessY);
 
     var sqrt_denom = 1.0 + ((1.0-NdotH*NdotH)/(NdotH * NdotH)) * a;
-    return max(0.01, 1.0/(PI*roughnessX*roughnessY * pow(NdotH, 4.0) * sqrt_denom*sqrt_denom));
+    return max(0.00, 1.0/(PI*roughnessX*roughnessY * pow(NdotH, 4.0) * sqrt_denom*sqrt_denom));
 }
 
 fn GeometrySchlickGGX(NdotV: f32, k: f32)-> f32
