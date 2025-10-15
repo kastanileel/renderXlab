@@ -36,7 +36,16 @@ export class Pipeline{
             '../../scenes/skybox2/ny.png',
             '../../scenes/skybox2/pz.png', 
             '../../scenes/skybox2/nz.png'
-        ];
+        ]; 
+/*
+        const faceUrls = [
+            '../../scenes/skyboxx/p.png', 
+            '../../scenes/skyboxx/p.png', 
+            '../../scenes/skyboxx/p.png', 
+            '../../scenes/skyboxx/p.png', 
+            '../../scenes/skyboxx/l.png', 
+            '../../scenes/skyboxx/l.png', 
+       ];*/
 
         const faceImages = await Promise.all(faceUrls.map(async (url) => {
             const img = new Image();

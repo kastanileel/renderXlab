@@ -8,9 +8,10 @@ var previousAccum: texture_2d<f32>; // read-only sampled texture
 
 struct Uniforms{
     time: f32,
-    slider: f32,
+    roughnessX: f32,
     frameCount: f32,
-    metalness: f32
+    roughnessY: f32,
+    metalness: f32,
 };
 
 @group(0) @binding(2)
@@ -222,7 +223,10 @@ fn ggx_pdf(N: vec3<f32>, V: vec3<f32>, h: vec3<f32>, alpha: f32) -> f32 {
 
 fn samplePrincipled(matID: i32, w_o: vec3f, normal: vec3f, pdf: ptr<function, f32>, seed: ptr<function, u32>) -> vec3f {
     //GGX sampling
-    let roughness = max(0.001, params.slider);
+    let roughnessX = max(0.001, params.roughnessX);
+    let roughnessY = max(0.001, params.roughnessY);
+    let roughness = (roughnessX + roughnessY)/ 2.0;
+
     let metalness = params.metalness;
 
     if(RandomValue(seed) > metalness){
@@ -261,8 +265,8 @@ fn samplePrincipled(matID: i32, w_o: vec3f, normal: vec3f, pdf: ptr<function, f3
     var cosTheta = cos(theta_m);
     var sinTheta = sin(theta_m);
     var h_local = vec3f(
-        sinTheta * cos(azimuth),
-        sinTheta * sin(azimuth),
+        sinTheta * cos(azimuth) * roughnessX,
+        sinTheta * sin(azimuth) * roughnessY,
         cosTheta
     );
 
@@ -300,11 +304,31 @@ fn GGX(n: vec3f, h:vec3f, roughness: f32) -> f32{
     return (sqr_rough)/(PI * sqrt_denom * sqrt_denom);
 }
 
-fn GGX2(n: vec3f, h:vec3f, roughness: f32) -> f32{
-    var sqr_rough = roughness * roughness;
-    var NdotH = abs(dot(n, h));
-    var sqrt_denom = NdotH * NdotH * (sqr_rough-1.0) + 1.0;
-    return (sqr_rough)/(PI * sqrt_denom * sqrt_denom);
+fn makeTangent(n: vec3f) -> vec3f{
+    var t = vec3f(1.0, 0.0, 0.0);
+    if(dot(n, t) > 0.95){
+        t = vec3f(0.0, 1.0, 0.0);
+    }
+
+    return normalize(cross(t, n));
+}
+
+fn GGX_aniso(n:vec3f, h:vec3f, roughnessX: f32, roughnessY: f32)-> f32{
+    var NdotH = dot(n, h);
+
+    var tangent = makeTangent(n);
+    var bitangent = normalize(cross(n, tangent));
+
+    // azimut phi stuff:
+    let Ht = vec3f(dot(h, tangent), dot(h, bitangent), dot(h, n)); // h in tangent space
+    let cosPhi = Ht.x / sqrt(Ht.x*Ht.x + Ht.y*Ht.y + 1e-7);
+    let sinPhi = Ht.y / sqrt(Ht.x*Ht.x + Ht.y*Ht.y + 1e-7); 
+
+    // anisotropic factor:
+    var a = (cosPhi*cosPhi) / (roughnessX*roughnessX) + (sinPhi*sinPhi) / (roughnessY*roughnessY);
+
+    var sqrt_denom = 1.0 + ((1.0-NdotH*NdotH)/(NdotH * NdotH)) * a;
+    return max(0.01, 1.0/(PI*roughnessX*roughnessY * pow(NdotH, 4.0) * sqrt_denom*sqrt_denom));
 }
 
 fn GeometrySchlickGGX(NdotV: f32, k: f32)-> f32
@@ -328,7 +352,10 @@ fn GeometrySmith(N: vec3f, V: vec3f, L: vec3f, k: f32) -> f32
 fn evaluatePrincipled(matID: i32, w_o: vec3f, normal: vec3f, w_i: vec3f, uv: vec2f) -> vec3f {
     let mat = materials[matID];
     let baseColor = mat.albedo;
-    let roughness = max(0.001, params.slider);
+
+    let roughnessX = max(0.001, params.roughnessX);
+    let roughnessY = max(0.001, params.roughnessY);
+    let roughness = (roughnessX + roughnessY)/ 2.0;
     let metalness = params.metalness;
 
     // --- diffuse
@@ -344,7 +371,13 @@ fn evaluatePrincipled(matID: i32, w_o: vec3f, normal: vec3f, w_i: vec3f, uv: vec
     F0 = mix(F0, 1.0, metalness);
     let F = F_Schlick(dot(w_o, H), F0);
 
-    let D = GGX(normal, H, roughness);
+    var D = 
+    GGX_aniso(normal, H, roughnessX, roughnessY);
+    //GGX(normal, H, roughness);
+    if(!(D == D)){
+        D = 0.0;
+    }
+    D = abs(D);
 
     // mapping
     let k = roughness/2.0;//*roughness;
@@ -353,18 +386,8 @@ fn evaluatePrincipled(matID: i32, w_o: vec3f, normal: vec3f, w_i: vec3f, uv: vec
     let f_metal = (F * G * D) / (4.0 * max(NdotL * NdotV, 0.001));
 
     // --- refraction (rough dielectric)
-    let H_d = -normalize((1.0 * w_i + 1.0 * w_o));
-    let F_d = 0.0;
-    let G_d = GGX2(normal, H_d, roughness);
-    let denom = (NdotL + NdotV);
 
-    // 
-    if(dot(normal, w_i) > 0.0){
-      //return f_metal * vec3f(1.0);
-    }
-    return f_metal * vec3f(1.0) * metalness + (1.0-metalness)*f_baseDiffuse;
-    return vec3f(4.0) * G_d *1.0/roughness;
-    //return f_baseDiffuse;
+    return f_metal * baseColor * metalness + (1.0-metalness)*f_baseDiffuse;
 }
 
 
