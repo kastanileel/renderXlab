@@ -236,6 +236,9 @@ export class Pipeline{
         // currently assume each element has size 1
         let counter = 1;
         for (const [key, value] of state){
+            if(counter == 2){
+                counter += 1;
+            }
             uniformData[counter] = value;
             counter += 1;
         }

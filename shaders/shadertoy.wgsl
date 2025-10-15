@@ -9,7 +9,8 @@ var previousAccum: texture_2d<f32>; // read-only sampled texture
 struct Uniforms{
     time: f32,
     slider: f32,
-    frameCount: f32
+    frameCount: f32,
+    metalness: f32
 };
 
 @group(0) @binding(2)
@@ -220,24 +221,30 @@ fn ggx_pdf(N: vec3<f32>, V: vec3<f32>, h: vec3<f32>, alpha: f32) -> f32 {
 
 
 fn samplePrincipled(matID: i32, w_o: vec3f, normal: vec3f, pdf: ptr<function, f32>, seed: ptr<function, u32>) -> vec3f {
-    // Generate two random numbers in [0,1)
-/*    var rr = vec2f(RandomValue(seed), RandomValue(seed));
-  
-    var x = cos(2.0f*PI*rr.x) * 2.0f * sqrt(rr.y*(1.0-rr.y));
-    var y = sin(2.0f*PI*rr.x) * 2.0f * sqrt(rr.y*(1.0-rr.y));
-    var z = 1.0 - 2.0*rr.y;
-
-    // PDF for uniform hemisphere
-    *pdf =  max(0.0001, 1.0/(2.0*PI));
-    var w_i = normalize(vec3f(x, y, z));
-
-    if(dot(w_i, normal) < 0.0){
-        w_i = -w_i;
-    }
-    return w_i;*/
-    
     //GGX sampling
     let roughness = max(0.001, params.slider);
+    let metalness = params.metalness;
+
+    if(RandomValue(seed) > metalness){
+        var rr = vec2f(RandomValue(seed), RandomValue(seed));
+  
+        var x = cos(2.0f*PI*rr.x) * 2.0f * sqrt(rr.y*(1.0-rr.y));
+        var y = sin(2.0f*PI*rr.x) * 2.0f * sqrt(rr.y*(1.0-rr.y));
+        var z = 1.0 - 2.0*rr.y;
+
+        // PDF for uniform hemisphere
+        var pd = 1.0 / (2.0 * PI);        // hemisphere uniform in your branch
+        *pdf = max(1e-6f, (1.0 - metalness) * pd);  // <-- mixture pdf 
+        var w_i = normalize(vec3f(x, y, z));
+
+        if(dot(w_i, normal) <= 0.0){
+            w_i = -w_i;
+        }
+
+        return w_i;
+
+    } 
+
 
     // GGX importance sampling of the half-vector
     // sampling GGX
@@ -263,7 +270,9 @@ fn samplePrincipled(matID: i32, w_o: vec3f, normal: vec3f, pdf: ptr<function, f3
     let TBN = tangent_to_world(normal); 
     var H = normalize(TBN * h_local);
 
-    *pdf = max(0.001, ggx_pdf(normal, w_o, H, roughness));
+    var ps = ggx_pdf(normal, w_o, H, roughness);
+    *pdf = max(1e-6f, metalness * ps);   
+    //*pdf = mix(metalness, 1.0/(2.0*PI), max(0.001, ggx_pdf(normal, w_o, H, roughness)));
 
     return normalize(reflect(-w_o, H));
 
@@ -279,7 +288,7 @@ fn safeVec3(v: vec3f, fallback: vec3f) -> vec3f {
     return select(v, fallback, nanMask);
 }
 
-fn F_Schlick(VdotH: f32, f0: vec3f) -> vec3f{
+fn F_Schlick(VdotH: f32, f0: f32) -> f32{
     // assumes ior of 1.5
     return f0 + (1.0-f0)*(pow(1.0-VdotH, 5.0));
 }
@@ -287,6 +296,13 @@ fn F_Schlick(VdotH: f32, f0: vec3f) -> vec3f{
 fn GGX(n: vec3f, h:vec3f, roughness: f32) -> f32{
     var sqr_rough = roughness * roughness;
     var NdotH = dot(n, h);
+    var sqrt_denom = NdotH * NdotH * (sqr_rough-1.0) + 1.0;
+    return (sqr_rough)/(PI * sqrt_denom * sqrt_denom);
+}
+
+fn GGX2(n: vec3f, h:vec3f, roughness: f32) -> f32{
+    var sqr_rough = roughness * roughness;
+    var NdotH = abs(dot(n, h));
     var sqrt_denom = NdotH * NdotH * (sqr_rough-1.0) + 1.0;
     return (sqr_rough)/(PI * sqrt_denom * sqrt_denom);
 }
@@ -313,7 +329,9 @@ fn evaluatePrincipled(matID: i32, w_o: vec3f, normal: vec3f, w_i: vec3f, uv: vec
     let mat = materials[matID];
     let baseColor = mat.albedo;
     let roughness = max(0.001, params.slider);
+    let metalness = params.metalness;
 
+    // --- diffuse
    var f_baseDiffuse = baseColor / 3.14159265;
 
     var NdotV = dot(normal, w_o);
@@ -322,9 +340,8 @@ fn evaluatePrincipled(matID: i32, w_o: vec3f, normal: vec3f, w_i: vec3f, uv: vec
     // --- Cook-Torrance Specular ---
 
     //assume ior = 1.5
-    var F0 = vec3f(0.04);
-    var metalness = 1.0;
-    F0 = mix(F0, baseColor, metalness);
+    var F0 = (0.04);
+    F0 = mix(F0, 1.0, metalness);
     let F = F_Schlick(dot(w_o, H), F0);
 
     let D = GGX(normal, H, roughness);
@@ -335,8 +352,19 @@ fn evaluatePrincipled(matID: i32, w_o: vec3f, normal: vec3f, w_i: vec3f, uv: vec
     
     let f_metal = (F * G * D) / (4.0 * max(NdotL * NdotV, 0.001));
 
-    return f_metal * vec3f(1.0) + (1.0-F)*f_baseDiffuse;
-    return f_baseDiffuse;
+    // --- refraction (rough dielectric)
+    let H_d = -normalize((1.0 * w_i + 1.0 * w_o));
+    let F_d = 0.0;
+    let G_d = GGX2(normal, H_d, roughness);
+    let denom = (NdotL + NdotV);
+
+    // 
+    if(dot(normal, w_i) > 0.0){
+      //return f_metal * vec3f(1.0);
+    }
+    return f_metal * vec3f(1.0) * metalness + (1.0-metalness)*f_baseDiffuse;
+    return vec3f(4.0) * G_d *1.0/roughness;
+    //return f_baseDiffuse;
 }
 
 
@@ -395,6 +423,10 @@ fn intersect_sphere(ray: Ray, sphere: Sphere) -> Hit {
     // Spherical UV coordinates
     let u = 0.5 + atan2(normal.z, normal.x) / (2.0 * 3.14159265);
     let v = 0.5 - asin(normal.y) / 3.14159265;
+
+    if(dot(normal, ray.d) > 0.0){
+        return Hit(-1.0, vec2f(0.0), vec3f(0.0), sphere.id);
+    }
 
     return Hit(t, vec2f(u, v), normal, sphere.id);
 }
@@ -456,7 +488,7 @@ fn main(@builtin(global_invocation_id) id : vec3u){
     seed = (seed >> 22u) ^ seed;
 
     // Optional: mix in time
-    seed = seed ^ u32(params.time * 100384970.0);
+    seed = seed ^ u32(params.time * 1003.0);
 
 
     var uv: vec2<f32> = ((vec2<f32>(id.xy) + 0.5) / vec2<f32>(dims)) * 2.0 - 1.0;
