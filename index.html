@@ -8,6 +8,13 @@
         <link rel="icon" href="./faviconTest.png" type="image/png">
         <!-- enabling mathjax in html text blocks-->
         <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+        <script>
+            window.MathJax = {
+            tex: {
+                tags: 'ams' // enables automatic numbering
+            }
+            };
+        </script>
 
         <!-- mathjs, linear algebra library in use, have a look at utils/RXLMath.js-->
         <script src="https://cdn.jsdelivr.net/npm/mathjs@11/lib/browser/math.js"></script>
@@ -81,5 +88,80 @@
             
             
         </script>
+
+        <div class="content">
+
+        <div class="chapter">
+            <h2> 1.0 Ray Tracing</h2>
+            <h2> 1.1 A Ray</h2>
+            A ray is mathematically described as \[ \begin{equation} P(t) =  p + t\cdot \hat{\omega} \end{equation}\]
+
+           \(P(t)\) returns a point on the ray, \(p\) is the origin of the ray, \(\hat{\omega}\) a unit vector (aka "normalized") and \(t >= 0\) is a scalar.
+           
+            <h3>Normalizing a vector</h3>
+
+           \(\hat{\omega} = \frac{\omega}{||\omega||}=1\) 
+
+           <h3> Length of a vector</h3>
+           \[ ||v|| = \sqrt{v_1^2 + v_2^2 + ... + v_n^2} \]
+
+           <h3> Proof \(||n||^2 = n \cdot n\)</h3>
+           \[||n||^2 = \sqrt{n_1^2 + n_2^2 + ... n_n^2}^2 = n_1^2 + n_2^2 + ... n_n^2 = n \cdot n \]
+           
+
+            <h2> 1.2 Ray Sphere Intersection</h2>
+                A sphere is defined by its center \(O \in \mathbb{R}^3\) and its radius \(r \in \mathbb{R} \):
+                \[(x-x_0)^2 + (y-y_0)^2 + (z-z_0)^2 = r^2 = ||x-O||^2 = r^2\]
+
+                Any ray that intersects with a sphere satisfies the equation:
+                \[ ||P(t)-O||^2 = r^2\]
+
+                Substituting Equation (1)
+                \[||p + \hat{\omega} \cdot t - O||^2 = r^2\]
+
+                Defining \(M = p-O\) we can write
+                \[(M + \hat{\omega} \cdot t) \cdot (M + \hat{\omega} \cdot t) = r^2\]
+                \[(M^2-r^2) + 2\cdot M\cdot\hat{\omega}\cdot t + (\hat{\omega}t)^2 = 0\]
+
+                This is a quadratic equation in \(t\):
+                \[at^2 + bt + c = 0\], with \[a=\hat{\omega}^2, b=2\cdot M\cdot\hat{\omega}, c=M^2-r^2\]
+
+                The solution is then obtained via the quadaratic formula:
+                \[
+                    t = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
+                \]
+
+                The discriminant determines the number of real solutions. If two positive solutions exist, the smaller value of \(t\) corresponds to the closest intersection point along the ray.
+            
+            <h2> 1.3 Ray Triangle Intersection</h2>
+                Möller and Trumbore published a paper named <a href="https://doi.org/10.1145/1198555.1198746">"Fast, minimum storage ray/triangle intersection"</a>:
+
+                \(T(u, v)\) defines a point on a triangle with barycentric coordinates.
+                \[T(u, v) = u * v_1 + v * v_2 + (1-u-v) * v_0 \]
+
+                A ray that intersects the triangle satisfies the euqation:
+                R(t) = p + \hat{\omega} \cdot t = T(u, v) 
+
+                Rearranging yeilds:
+                \[p + \hat(\omega) \cdot t = u * v_1 + v * v_2 + (1-u-v) * v_0\]
+                \[p + \hat(\omega) \cdot t = u * v_1 + v * v_2 +  v_0 - u v_0 - v v_0\]
+                \[p + \hat(\omega) \cdot t = u * (v_1-v_0) + v * (v_2 - v_0) + v_0\]
+                \[p - v_0 = -\hat(\omega) \cdot t + u * (v_1-v_0) + v * (v_2 - v_0) + v_0\]
+
+                Rewriting the system of linear equations in a matrix-vector form yeilds:
+                \[p - v_0 = [-\hat{\omega}, (v_1-v_0), (v_2 - v_0)]  \begin{pmatrix}t \\ u \\ v \end{pmatrix}\]
+
+
+
+
+            <h2> Revision 1.0</h2>
+            <ol> 
+                <li>Normalize the vector \(v=(2, 0, 1) \). Result: \(\hat{v} = (\frac{2}{3}, 0, \frac{1}{3}) \)</li>
+                <li> Derive the ray sphere intersection. Result: (look at 1.2)</li>
+                <li> Derive the ray triangle intersection. Result: (look at 1.3)</li>
+            </ol>
+        </div>
+
+        </div>
     </body>
 </html>

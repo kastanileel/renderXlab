@@ -314,9 +314,9 @@ fn GGX(n: vec3f, h:vec3f, roughness: f32) -> f32{
 }
 
 fn makeTangent(n: vec3f) -> vec3f{
-    var t = vec3f(1.0, 0.0, 0.0);
+    var t = vec3f(0.0, 1.0, 0.0);
     if(dot(n, t) > 0.999){
-        t = vec3f(0.0, 1.0, 0.0);
+        t = vec3f(0.0, 0.0, 1.0);
     }
 
     return normalize(cross(t, n));

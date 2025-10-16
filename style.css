@@ -7,10 +7,19 @@ body {
   justify-content: center;
   align-items: center;
   margin: 0 auto;
+  font-family: 'JetBrains Mono', monospace;
 }
 
 canvas {
   width: 60%;
   height: auto;
   border-radius: 20px;
+}
+
+.content {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem;
+    line-height: 1.6;
+    background-color: #000000;
 }
