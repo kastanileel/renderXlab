@@ -151,8 +151,33 @@
                 Rewriting the system of linear equations in a matrix-vector form yeilds:
                 \[p - v_0 = [-\hat{\omega}, (v_1-v_0), (v_2 - v_0)]  \begin{pmatrix}t \\ u \\ v \end{pmatrix}\]
 
+                Möller and Trumbore apply Cramers Rule an rewrite \((v_1-v_0) = E_1 \), \((v_2 - v_0) = E_2\) and \(O-v_0 = T \):
+                \[\begin{pmatrix} t \\ u \\ v \end{pmatrix} = \frac{1}{-\hat{\omega} \cdot (E_1 \times E_2)} 
+                \begin{pmatrix} (T \times E_1) \cdot E_2 \\ (-\hat{\omega} \times T) \cdot E_2 \\ -\hat{\omega} \cdot (E_1 \times E_2) \end{pmatrix}\]
+
+                Substituting \((hat{\omega} \times E_2) = P \) and \(Q = (T \times E_1)\):
+                \[\begin{pmatrix} t \\ u \\ v \end{pmatrix} = \frac{1}{P \cdot E} 
+                \begin{pmatrix} Q \cdot E_2 \\ P \cdot T  \\ Q \cdot D \end{pmatrix}\]
+
+                Note: \(a \cdot (b \times c) = (a \times b) \cdot c\)
 
 
+
+            <h3>What is Cramer's Rule?</h3>  
+            Cramer's rule states that for \(Ax = b\) the \(i\)-th component of \(x\) is:
+            \[x_i = \frac{det(A_i)}{det(A)}\]
+
+            ,where \(A_i\) is \(A\), except that its \(i\)-th column is replaced by \(b\).
+
+            <h3>What is the determinant of a 2x2 matrix?</h3>
+            \[A = \begin{pmatrix}a & b \\ c & d\\\end{pmatrix} = ad - bc\]
+
+            <h3>What is the determinant of a 3x3 matrix?</h3>
+            \[A = \begin{pmatrix}a_x & b_x && c_x  \\ a_y & b_y && c_y \\ a_z & b_z && c_z\end{pmatrix} = a \cdot (b \times c)\]
+            , where \(a, b, c\) are the colum vectors.
+
+            <h3> Proof \((a\times b) \cdot c = a \cdot (b\times c)\)</h3>
+            TODO
 
             <h2> Revision 1.0</h2>
             <ol> 
